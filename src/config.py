@@ -4,8 +4,10 @@ Handles environment-based configuration with validation and default values.
 """
 
 import os
+import logging
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
+from src.exceptions import ConfigurationError
 
 @dataclass
 class DatabaseConfig:
@@ -124,10 +126,6 @@ class AppConfig:
     environment: str = "development"
     debug: bool = True
 
-class ConfigurationError(Exception):
-    """Raised when configuration validation fails."""
-    pass
-
 class ConfigManager:
     """Manages application configuration from environment variables."""
     
@@ -138,7 +136,8 @@ class ConfigManager:
     
     def _load_from_environment(self):
         """Load configuration from environment variables."""
-        print("Loading configuration from environment variables")
+        logger = logging.getLogger(__name__)
+        logger.info("Loading configuration from environment variables")
         
         # Environment settings
         self.config.environment = os.getenv("ENVIRONMENT", "development")
@@ -201,11 +200,12 @@ class ConfigManager:
         self.config.logging.format = os.getenv("LOG_FORMAT", self.config.logging.format)
         self.config.logging.file_path = os.getenv("LOG_FILE_PATH")
         
-        print(f"Configuration loaded for environment: {self.config.environment}")
+        logger.info(f"Configuration loaded for environment: {self.config.environment}")
     
     def _validate_configuration(self):
         """Validate the loaded configuration."""
-        print("Validating configuration")
+        logger = logging.getLogger(__name__)
+        logger.info("Validating configuration")
         
         errors = []
         
@@ -270,10 +270,9 @@ class ConfigManager:
         
         if errors:
             error_message = "Configuration validation failed:\n" + "\n".join(f"  - {error}" for error in errors)
-            print(f"ERROR: {error_message}")
+            logger.error(f"ERROR: {error_message}")
             raise ConfigurationError(error_message)
-        
-        print("Configuration validation successful")
+        logger.info("Configuration validation successful")
     
     def get_config(self) -> AppConfig:
         """Get the validated configuration."""
@@ -297,17 +296,19 @@ class ConfigManager:
     
     def print_config_summary(self):
         """Print a summary of the current configuration (without sensitive data)."""
-        print("Configuration Summary:")
-        print(f"  Environment: {self.config.environment}")
-        print(f"  Debug: {self.config.debug}")
-        print(f"  Database: {self.config.database.host}:{self.config.database.port}/{self.config.database.name}")
-        print(f"  Redis: {self.config.redis.host}:{self.config.redis.port}/{self.config.redis.db}")
-        print(f"  Elasticsearch: {self.config.elasticsearch.host}:{self.config.elasticsearch.port}")
-        print(f"  Tika: {self.config.tika.host}:{self.config.tika.port}")
-        print(f"  API: {self.config.api.host}:{self.config.api.port}")
-        print(f"  Upload Directory: {self.config.processing.upload_directory}")
-        print(f"  Max File Size: {self.config.processing.max_file_size_mb}MB")
-        print(f"  Log Level: {self.config.logging.level}")
+        logger = logging.getLogger(__name__)
+        # WARNING: Do not log sensitive data such as passwords or secrets here!
+        logger.info("Configuration Summary:")
+        logger.info(f"  Environment: {self.config.environment}")
+        logger.info(f"  Debug: {self.config.debug}")
+        logger.info(f"  Database: {self.config.database.host}:{self.config.database.port}/{self.config.database.name}")
+        logger.info(f"  Redis: {self.config.redis.host}:{self.config.redis.port}/{self.config.redis.db}")
+        logger.info(f"  Elasticsearch: {self.config.elasticsearch.host}:{self.config.elasticsearch.port}")
+        logger.info(f"  Tika: {self.config.tika.host}:{self.config.tika.port}")
+        logger.info(f"  API: {self.config.api.host}:{self.config.api.port}")
+        logger.info(f"  Upload Directory: {self.config.processing.upload_directory}")
+        logger.info(f"  Max File Size: {self.config.processing.max_file_size_mb}MB")
+        logger.info(f"  Log Level: {self.config.logging.level}")
 
 # Global configuration manager instance
 config_manager = ConfigManager()

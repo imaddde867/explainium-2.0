@@ -6,6 +6,7 @@ Provides structured error handling across different system components.
 from typing import Optional, Dict, Any
 import traceback
 from datetime import datetime
+import sys
 
 
 class BaseKnowledgeExtractionError(Exception):
@@ -16,7 +17,8 @@ class BaseKnowledgeExtractionError(Exception):
         message: str, 
         error_code: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
-        correlation_id: Optional[str] = None
+        correlation_id: Optional[str] = None,
+        traceback_str: Optional[str] = None
     ):
         super().__init__(message)
         self.message = message
@@ -24,7 +26,13 @@ class BaseKnowledgeExtractionError(Exception):
         self.details = details or {}
         self.correlation_id = correlation_id
         self.timestamp = datetime.utcnow()
-        self.traceback = traceback.format_exc()
+        # Only set traceback if inside an except block or if provided
+        if traceback_str is not None:
+            self.traceback = traceback_str
+        elif sys.exc_info()[0] is not None:
+            self.traceback = traceback.format_exc()
+        else:
+            self.traceback = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert exception to dictionary for logging and API responses."""

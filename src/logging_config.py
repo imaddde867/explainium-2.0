@@ -91,7 +91,10 @@ def setup_logging(
     if enable_file:
         log_dir = os.path.dirname(log_file_path)
         if log_dir:
-            os.makedirs(log_dir, exist_ok=True)
+            try:
+                os.makedirs(log_dir, exist_ok=True)
+            except Exception as e:
+                print(f"WARNING: Could not create log directory {log_dir}: {e}")
     
     # Configure formatters
     formatters = {

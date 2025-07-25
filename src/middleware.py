@@ -183,6 +183,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         }
         
         # Optionally log request body (be careful with sensitive data)
+        # WARNING: Logging request bodies can expose sensitive data. Consider redacting known sensitive fields.
         if self.log_request_body and request.method in ['POST', 'PUT', 'PATCH']:
             try:
                 body = await request.body()
@@ -190,6 +191,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     extra_data['request_body_size'] = len(body)
                     # Only log first 1000 characters to avoid huge logs
                     if len(body) < 1000:
+                        # TODO: Redact known sensitive fields from request_body before logging
                         extra_data['request_body'] = body.decode('utf-8', errors='ignore')
             except Exception as e:
                 extra_data['request_body_error'] = str(e)
