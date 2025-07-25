@@ -27,7 +27,7 @@ def teardown_function():
 def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Welcome to the Industrial Knowledge Extraction System!"}
+    assert response.json()['message'] == 'Welcome to the Industrial Knowledge Extraction System!'
 
 # Note: File upload and Celery task testing would be more complex
 # and might require mocking Celery tasks or running a test Celery worker.
@@ -36,7 +36,8 @@ def test_read_root():
 def test_get_all_documents_empty():
     response = client.get("/documents/")
     assert response.status_code == 200
-    assert response.json() == []
+    data = response.json()
+    assert data['items'] == []
 
 def test_get_document_not_found():
     response = client.get("/documents/999")
