@@ -88,6 +88,25 @@ class ProcessingError(BaseKnowledgeExtractionError):
         super().__init__(message, details=details, **kwargs)
 
 
+class UnsupportedFileTypeError(BaseKnowledgeExtractionError):
+    """Raised when a file type is not supported by the system."""
+    
+    def __init__(
+        self, 
+        message: str, 
+        file_path: Optional[str] = None,
+        supported_types: Optional[list] = None,
+        **kwargs
+    ):
+        details = kwargs.get('details', {})
+        if file_path:
+            details['file_path'] = file_path
+        if supported_types:
+            details['supported_types'] = supported_types
+        
+        super().__init__(message, details=details, **kwargs)
+
+
 class AIError(BaseKnowledgeExtractionError):
     """Raised when AI processing operations fail."""
     
