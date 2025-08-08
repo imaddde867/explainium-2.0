@@ -1,6 +1,6 @@
 import os
 from typing import Dict, List, Optional
-from src.processors.document_processor import process_document, process_image, process_video, get_file_type
+from src.processors.document_processor import process_document, process_document_enhanced, process_image, process_video, get_file_type
 from src.exceptions import ProcessingError, UnsupportedFileTypeError
 from src.logging_config import get_logger, log_processing_step, log_error
 
@@ -46,12 +46,13 @@ class UnifiedProcessor:
             supported_types=list(self.supported_extensions.keys())
         )
     
-    def process_file(self, file_path: str) -> Dict:
+    def process_file(self, file_path: str, enable_advanced_features: bool = True) -> Dict:
         """
         Process a file using the appropriate processor based on file type.
         
         Args:
             file_path: Path to the file to process
+            enable_advanced_features: Whether to enable advanced AI features (knowledge graph, tacit knowledge, relationships)
             
         Returns:
             Dictionary containing extracted text and structured data
@@ -78,7 +79,7 @@ class UnifiedProcessor:
             
             # Route to appropriate processor (all in document_processor.py now)
             if processor_type == 'document':
-                return process_document(file_path)
+                return process_document_enhanced(file_path, enable_advanced_features)
             elif processor_type == 'image':
                 return process_image(file_path)
             elif processor_type == 'video':
@@ -131,17 +132,18 @@ class UnifiedProcessor:
 # Initialize the unified processor
 unified_processor = UnifiedProcessor()
 
-def process_any_file(file_path: str) -> Dict:
+def process_any_file(file_path: str, enable_advanced_features: bool = True) -> Dict:
     """
     Convenience function to process any supported file type.
     
     Args:
         file_path: Path to the file to process
+        enable_advanced_features: Whether to enable advanced AI features (knowledge graph, tacit knowledge, relationships)
         
     Returns:
         Dictionary containing extracted text and structured data
     """
-    return unified_processor.process_file(file_path)
+    return unified_processor.process_file(file_path, enable_advanced_features)
 
 def get_supported_file_types() -> Dict[str, List[str]]:
     """

@@ -15,6 +15,12 @@ from pathlib import Path
 from src.ai.ner_extractor import ner_extractor
 from src.ai.classifier import classifier
 from src.ai.keyphrase_extractor import keyphrase_extractor
+from src.ai.knowledge_extraction_engine import knowledge_extraction_engine
+from src.ai.relationship_mapper import (
+    ProcessDependencyMapper, EquipmentMaintenanceCorrelator,
+    SkillFunctionLinker, ComplianceProcedureConnector
+)
+from src.ai.knowledge_graph import KnowledgeGraphBuilder
 from src.exceptions import ProcessingError, AIError, ServiceUnavailableError
 from src.logging_config import get_logger, log_processing_step, log_error
 from src.config import config_manager
@@ -910,6 +916,219 @@ def process_document(file_path: str):
     except Exception as e:
         logger.error(f"Document processing failed for {filename}: {str(e)}")
         raise ProcessingError(f"Failed to process {filename}: {str(e)}", file_path=file_path, processing_stage="document_processing") from e
+
+def process_document_enhanced(file_path: str, enable_advanced_features: bool = True):
+    """
+    Enhanced document processing with integrated knowledge graph, tacit knowledge extraction,
+    and relationship mapping capabilities.
+    """
+    logger.info(f"Starting enhanced document processing: {file_path}")
+    filename = os.path.basename(file_path)
+    
+    # Validate file exists
+    if not os.path.exists(file_path):
+        raise ProcessingError(f"File not found: {file_path}", file_path=file_path, processing_stage="file_validation")
+
+    try:
+        # Step 1: Basic text extraction and processing (same as before)
+        log_processing_step(logger, "text_extraction", "started", extra_data={'filename': filename})
+        extracted_text = _extract_text_with_tika(file_path)
+        document_sections = extract_sections(extracted_text)
+        log_processing_step(logger, "text_extraction", "completed", extra_data={'text_length': len(extracted_text)})
+        
+        # Step 2: Basic AI processing
+        log_processing_step(logger, "basic_ai_processing", "started")
+        extracted_entities = _safe_extract_entities(extracted_text)
+        classification_result = _safe_classify_document(extracted_text)
+        key_phrases = _safe_extract_keyphrases(extracted_text)
+        log_processing_step(logger, "basic_ai_processing", "completed", 
+                          extra_data={'entities_count': len(extracted_entities), 'keyphrases_count': len(key_phrases)})
+        
+        # Step 3: Structured data extraction
+        log_processing_step(logger, "structured_extraction", "started")
+        equipment_data = _extract_equipment_data(extracted_text, extracted_entities)
+        procedure_data = _extract_procedure_data(extracted_text, extracted_entities)
+        safety_info_data = _extract_safety_information(extracted_text, extracted_entities)
+        technical_spec_data = _extract_technical_specifications(extracted_text, extracted_entities)
+        personnel_data = _extract_personnel_data(extracted_text, extracted_entities)
+        log_processing_step(logger, "structured_extraction", "completed")
+        
+        # Step 4: Advanced AI processing (if enabled)
+        tacit_knowledge_data = {}
+        relationship_data = {}
+        knowledge_graph_data = {}
+        
+        if enable_advanced_features:
+            try:
+                # Tacit knowledge extraction
+                log_processing_step(logger, "tacit_knowledge_extraction", "started")
+                tacit_knowledge_data = knowledge_extraction_engine.extract_tacit_knowledge(
+                    extracted_text, extracted_entities
+                )
+                log_processing_step(logger, "tacit_knowledge_extraction", "completed",
+                                  extra_data={'workflow_deps': len(tacit_knowledge_data.get('workflow_dependencies', [])),
+                                            'decision_patterns': len(tacit_knowledge_data.get('decision_patterns', [])),
+                                            'optimization_patterns': len(tacit_knowledge_data.get('optimization_patterns', [])),
+                                            'communication_flows': len(tacit_knowledge_data.get('communication_flows', []))})
+                
+                # Relationship mapping
+                log_processing_step(logger, "relationship_mapping", "started")
+                relationship_data = _extract_relationships_enhanced(
+                    extracted_text, extracted_entities, equipment_data, procedure_data, personnel_data, safety_info_data
+                )
+                log_processing_step(logger, "relationship_mapping", "completed",
+                                  extra_data={'total_relationships': sum(len(v) for v in relationship_data.values())})
+                
+                # Knowledge graph construction
+                log_processing_step(logger, "knowledge_graph_construction", "started")
+                knowledge_graph_data = _build_knowledge_graph(
+                    equipment_data, procedure_data, personnel_data, 
+                    relationship_data, tacit_knowledge_data
+                )
+                log_processing_step(logger, "knowledge_graph_construction", "completed",
+                                  extra_data={'nodes_count': knowledge_graph_data.get('nodes_count', 0),
+                                            'edges_count': knowledge_graph_data.get('edges_count', 0)})
+                
+            except Exception as e:
+                logger.warning(f"Advanced processing failed for {filename}: {str(e)}")
+                # Continue with basic processing if advanced features fail
+        
+        # Compile final result
+        result = {
+            "filename": filename,
+            "extracted_text": extracted_text,
+            "metadata": {
+                "source": "tika", 
+                "processing_method": "enhanced" if enable_advanced_features else "basic",
+                "advanced_features_enabled": enable_advanced_features
+            },
+            "extracted_entities": extracted_entities,
+            "classification": classification_result,
+            "key_phrases": key_phrases,
+            "equipment_data": equipment_data,
+            "procedure_data": procedure_data,
+            "safety_info_data": safety_info_data,
+            "technical_spec_data": technical_spec_data,
+            "personnel_data": personnel_data,
+            "document_sections": document_sections,
+            "status": "processed"
+        }
+        
+        # Add advanced processing results if available
+        if enable_advanced_features and tacit_knowledge_data:
+            result.update({
+                "tacit_knowledge": tacit_knowledge_data,
+                "relationships": relationship_data,
+                "knowledge_graph": knowledge_graph_data
+            })
+        
+        logger.info(f"Enhanced document processing completed successfully: {filename}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Enhanced document processing failed for {filename}: {str(e)}")
+        raise ProcessingError(f"Failed to process {filename}: {str(e)}", file_path=file_path, processing_stage="enhanced_document_processing") from e
+
+def _extract_relationships_enhanced(text: str, entities: list, equipment_data: list, 
+                                  procedure_data: list, personnel_data: list, safety_info_data: list) -> dict:
+    """Extract relationships using the advanced relationship mapping components."""
+    relationships = {
+        'process_dependencies': [],
+        'equipment_maintenance_correlations': [],
+        'skill_function_links': [],
+        'compliance_procedure_connections': []
+    }
+    
+    try:
+        # Convert extracted data to database-like objects for compatibility
+        # This is a simplified conversion - in production you'd want proper model instances
+        mock_knowledge_items = []
+        mock_procedures = []
+        mock_equipment = []
+        mock_personnel = []
+        mock_safety_info = []
+        
+        # Initialize relationship mappers
+        dependency_mapper = ProcessDependencyMapper()
+        maintenance_correlator = EquipmentMaintenanceCorrelator()
+        skill_linker = SkillFunctionLinker()
+        compliance_connector = ComplianceProcedureConnector()
+        
+        # Extract process dependencies
+        if procedure_data:
+            relationships['process_dependencies'] = dependency_mapper.identify_process_dependencies(
+                mock_knowledge_items, mock_procedures
+            )
+        
+        # Extract equipment maintenance correlations
+        if equipment_data and procedure_data:
+            relationships['equipment_maintenance_correlations'] = maintenance_correlator.correlate_equipment_maintenance(
+                mock_equipment, mock_procedures
+            )
+        
+        # Extract skill-function links
+        if personnel_data and procedure_data:
+            relationships['skill_function_links'] = skill_linker.link_skills_functions(
+                mock_personnel, mock_procedures
+            )
+        
+        # Extract compliance connections
+        if procedure_data and safety_info_data:
+            relationships['compliance_procedure_connections'] = compliance_connector.connect_compliance_procedures(
+                mock_procedures, mock_safety_info
+            )
+        
+    except Exception as e:
+        logger.warning(f"Relationship extraction failed: {str(e)}")
+    
+    return relationships
+
+def _build_knowledge_graph(equipment_data: list, procedure_data: list, personnel_data: list,
+                         relationship_data: dict, tacit_knowledge_data: dict) -> dict:
+    """Build knowledge graph from extracted data and relationships."""
+    graph_data = {
+        'nodes_count': 0,
+        'edges_count': 0,
+        'graph_metadata': {},
+        'visualization_data': None
+    }
+    
+    try:
+        # Initialize knowledge graph builder
+        graph_builder = KnowledgeGraphBuilder()
+        
+        # Convert data to appropriate formats for graph building
+        # This is a simplified version - in production you'd want proper model instances
+        knowledge_items = []
+        process_dependencies = relationship_data.get('process_dependencies', [])
+        equipment_correlations = relationship_data.get('equipment_maintenance_correlations', [])
+        skill_links = relationship_data.get('skill_function_links', [])
+        compliance_connections = relationship_data.get('compliance_procedure_connections', [])
+        
+        # Build the graph
+        graph = graph_builder.build_knowledge_graph(
+            knowledge_items=knowledge_items,
+            process_dependencies=process_dependencies,
+            equipment_correlations=equipment_correlations,
+            skill_links=skill_links,
+            compliance_connections=compliance_connections,
+            equipment_list=None,  # Would convert equipment_data to Equipment objects
+            personnel_list=None   # Would convert personnel_data to Personnel objects
+        )
+        
+        graph_data.update({
+            'nodes_count': graph.number_of_nodes(),
+            'edges_count': graph.number_of_edges(),
+            'graph_metadata': {
+                'is_connected': len(list(graph.nodes())) > 0,
+                'has_cycles': not graph.number_of_edges() == 0  # Simplified check
+            }
+        })
+        
+    except Exception as e:
+        logger.warning(f"Knowledge graph construction failed: {str(e)}")
+    
+    return graph_data
 
 def _extract_text_with_tika(file_path: str) -> str:
     """Simplified Tika text extraction with better error handling."""

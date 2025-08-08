@@ -1,7 +1,7 @@
 from celery import Celery
 from celery.exceptions import Retry, MaxRetriesExceededError
 from celery.signals import task_prerun, task_postrun, task_failure, task_retry
-from src.processors.document_processor import process_document, process_video, get_file_type
+from src.processors.document_processor import process_document, process_document_enhanced, process_video, get_file_type
 from src.database.database import SessionLocal, init_db
 from src.database import crud
 from src.search.elasticsearch_client import es_client
@@ -250,7 +250,7 @@ def process_document_task(self, file_path: str, correlation_id: str = None):
         if file_type == "video":
             result = process_video(file_path)
         else:
-            result = process_document(file_path)
+            result = process_document_enhanced(file_path)
         
         # Save to database
         db_document = crud.create_document(
