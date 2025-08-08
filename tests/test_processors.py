@@ -13,9 +13,11 @@ from src.processors.document_processor import (
 # Mock external dependencies for isolated testing
 @pytest.fixture(autouse=True)
 def mock_external_dependencies():
-    with patch('src.ai.ner_extractor.ner_extractor') as mock_ner_extractor,
-         patch('src.ai.classifier.classifier') as mock_classifier,
-         patch('src.ai.keyphrase_extractor.keyphrase_extractor') as mock_keyphrase_extractor:
+    with (
+        patch('src.ai.ner_extractor.ner_extractor') as mock_ner_extractor,
+        patch('src.ai.classifier.classifier') as mock_classifier,
+        patch('src.ai.keyphrase_extractor.keyphrase_extractor') as mock_keyphrase_extractor,
+    ):
         mock_ner_extractor.extract_entities.return_value = []
         mock_classifier.classify_document.return_value = {"category": "unclassified", "score": 0.0}
         mock_keyphrase_extractor.extract_keyphrases.return_value = []

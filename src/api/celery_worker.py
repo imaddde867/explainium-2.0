@@ -249,6 +249,12 @@ def process_document_task(self, file_path: str, correlation_id: str = None):
         # Process document
         if file_type == "video":
             result = process_video(file_path)
+        elif file_type == "image":
+            # Images are handled by Tika OCR within process_document
+            result = process_document(file_path)
+        elif file_type == "audio":
+            # Fallback: treat as video pipeline for transcription
+            result = process_video(file_path)
         else:
             result = process_document(file_path)
         

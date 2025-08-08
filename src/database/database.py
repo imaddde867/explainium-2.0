@@ -6,11 +6,16 @@ from src.database.models import Base
 from src.config import config_manager
 from src.logging_config import get_logger
 import time
+import os
 
 logger = get_logger(__name__)
 
 # Get database URL from configuration
-DATABASE_URL = config_manager.get_database_url()
+DATABASE_URL = os.getenv("TESTING_SQLALCHEMY_DATABASE_URL") or config_manager.get_database_url()
+
+sqlite_kwargs = {}
+if DATABASE_URL.startswith("sqlite"):
+    sqlite_kwargs = {"check_same_thread": False}
 
 # Enhanced engine configuration with connection pooling
 engine = create_engine(
@@ -21,10 +26,10 @@ engine = create_engine(
     pool_pre_ping=config_manager.config.database.pool_pre_ping,
     pool_recycle=config_manager.config.database.pool_recycle,
     echo=config_manager.config.debug,  # Log SQL statements in debug mode
-    connect_args={
+    connect_args=({
         "connect_timeout": config_manager.config.database.connect_timeout,
         "application_name": "knowledge_extraction_system"
-    }
+    } if not DATABASE_URL.startswith("sqlite") else sqlite_kwargs)
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

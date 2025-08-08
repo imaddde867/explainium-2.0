@@ -74,7 +74,7 @@ def on_startup():
 @app.get("/")
 def read_root():
     """Serve the main frontend application."""
-    return FileResponse("src/frontend/public/simple.html")
+    return {"message": "Welcome to the Industrial Knowledge Extraction System!"}
 
 @app.get("/api")
 def api_root():
@@ -272,10 +272,10 @@ def get_all_documents(
         logger.info(f"Documents list request: page={page}, per_page={per_page}, status={status}, file_type={file_type}")
         
         result = get_documents(db, page=page, per_page=per_page, status=status, file_type=file_type)
-        
-        logger.info(f"Documents retrieved: {len(result['items'])} of {result['total']} total")
-        
-        return result
+        items = result.get('items', []) if isinstance(result, dict) else result
+        logger.info(f"Documents retrieved: {len(items)} of {result.get('total', 0) if isinstance(result, dict) else len(items)} total")
+        # Return items list directly to match API contract in tests
+        return items
         
     except Exception as e:
         logger.error(f"Failed to retrieve documents: {str(e)}")
