@@ -21,3 +21,4 @@ httpx
 spacy
 networkx
 alembic
+pytesseract

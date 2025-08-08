@@ -1,6 +1,12 @@
-FROM python:3.10-slim-buster
+FROM python:3.10-slim
 
 WORKDIR /app
+
+# Install system dependencies including Tesseract for OCR
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
