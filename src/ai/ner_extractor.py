@@ -1,4 +1,8 @@
-from transformers import pipeline
+try:
+    from transformers import pipeline as hf_pipeline  # type: ignore
+except Exception:
+    def hf_pipeline(*args, **kwargs):  # type: ignore
+        raise ImportError("transformers is not installed in this environment")
 
 class NERExtractor:
     def __init__(self):
@@ -9,7 +13,7 @@ class NERExtractor:
             # Using a pre-trained NER model from Hugging Face
             # This model identifies entities like PER (person), ORG (organization), LOC (location), etc.
             # For industrial documentation, we might need to fine-tune a model or use a more specialized one later.
-            self.nlp = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
+            self.nlp = hf_pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
 
     def extract_entities(self, text: str) -> list[dict]:
         if not text or not isinstance(text, str):

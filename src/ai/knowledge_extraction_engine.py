@@ -12,8 +12,19 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple, Set
 from dataclasses import dataclass, asdict
 from collections import defaultdict, Counter
-import spacy
-from transformers import pipeline
+try:
+    import spacy  # type: ignore
+except Exception:
+    class _SpacyStub:
+        def load(self, *args, **kwargs):
+            raise ImportError("spaCy is not installed in this environment")
+    spacy = _SpacyStub()  # type: ignore
+
+try:
+    from transformers import pipeline as hf_pipeline  # type: ignore
+except Exception:
+    def hf_pipeline(*args, **kwargs):  # type: ignore
+        raise ImportError("transformers is not installed in this environment")
 import networkx as nx
 
 from src.logging_config import get_logger
@@ -85,7 +96,7 @@ class TacitKnowledgeDetector:
             self.nlp = spacy.load("en_core_web_sm")
             
             # Load sentiment analysis for detecting optimization opportunities
-            self.sentiment_analyzer = pipeline(
+            self.sentiment_analyzer = hf_pipeline(
                 "sentiment-analysis",
                 model="cardiffnlp/twitter-roberta-base-sentiment-latest"
             )

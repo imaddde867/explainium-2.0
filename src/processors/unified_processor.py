@@ -1,6 +1,6 @@
 import os
 from typing import Dict, List, Optional
-from src.processors.document_processor import process_document, process_image, process_video, get_file_type
+from src.processors.document_processor import process_document, process_image, process_video, process_audio, get_file_type
 from src.exceptions import ProcessingError, UnsupportedFileTypeError
 from src.logging_config import get_logger, log_processing_step, log_error
 
@@ -18,7 +18,7 @@ class UnifiedProcessor:
             'document': ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.rtf'],
             'image': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.webp'],
             'video': ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v'],
-            'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a']
+            'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.oga']
         }
     
     def get_processor_type(self, file_path: str) -> str:
@@ -84,8 +84,7 @@ class UnifiedProcessor:
             elif processor_type == 'video':
                 return process_video(file_path)
             elif processor_type == 'audio':
-                # For now, treat audio like video (extract audio and use Whisper)
-                return process_video(file_path)
+                return process_audio(file_path)
             else:
                 raise UnsupportedFileTypeError(
                     f"Unknown processor type: {processor_type}",

@@ -2,11 +2,23 @@ import os
 import requests
 import json
 import ffmpeg
-import whisper
+try:
+    import whisper  # type: ignore
+except Exception:
+    whisper = None  # type: ignore
 import re
-import cv2
-import numpy as np
-import pytesseract
+try:
+    import cv2  # type: ignore
+except Exception:
+    cv2 = None  # type: ignore
+try:
+    import numpy as np  # type: ignore
+except Exception:
+    np = None  # type: ignore
+try:
+    import pytesseract  # type: ignore
+except Exception:
+    pytesseract = None  # type: ignore
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -15,6 +27,8 @@ from pathlib import Path
 from src.ai.ner_extractor import ner_extractor
 from src.ai.classifier import classifier
 from src.ai.keyphrase_extractor import keyphrase_extractor
+from src.ai.knowledge_extraction_engine import knowledge_extraction_engine
+from src.ai.knowledge_structuring_framework import knowledge_structuring_framework
 from src.exceptions import ProcessingError, AIError, ServiceUnavailableError
 from src.logging_config import get_logger, log_processing_step, log_error
 from src.config import config_manager
@@ -73,8 +87,10 @@ class ImagePreprocessor:
         if len(image.shape) < 2:
             raise ProcessingError("Invalid image: not a valid image format")
     
-    def _resize_for_ocr(self, image: np.ndarray, target_dpi: int = 300) -> np.ndarray:
+    def _resize_for_ocr(self, image: "Any", target_dpi: int = 300) -> "Any":
         """Resize image to optimal DPI for OCR."""
+        if cv2 is None:
+            raise ProcessingError("OpenCV not available for image resizing")
         height, width = image.shape[:2]
         
         # Calculate optimal size (assuming 96 DPI baseline)
@@ -90,8 +106,10 @@ class ImagePreprocessor:
         
         return cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
     
-    def _enhance_contrast(self, image: np.ndarray) -> np.ndarray:
+    def _enhance_contrast(self, image: "Any") -> "Any":
         """Enhance image contrast using CLAHE."""
+        if cv2 is None:
+            raise ProcessingError("OpenCV not available for contrast enhancement")
         if len(image.shape) == 3:
             # Convert to LAB color space for better contrast enhancement
             lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
@@ -109,8 +127,10 @@ class ImagePreprocessor:
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             return clahe.apply(image)
     
-    def _denoise_image(self, image: np.ndarray) -> np.ndarray:
+    def _denoise_image(self, image: "Any") -> "Any":
         """Remove noise while preserving text edges."""
+        if cv2 is None:
+            raise ProcessingError("OpenCV not available for denoising")
         if len(image.shape) == 3:
             # For color images, denoise each channel
             return cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
@@ -118,8 +138,10 @@ class ImagePreprocessor:
             # For grayscale images
             return cv2.fastNlMeansDenoising(image, None, 10, 7, 21)
     
-    def _binarize_image(self, image: np.ndarray) -> np.ndarray:
+    def _binarize_image(self, image: "Any") -> "Any":
         """Create binary image for better OCR."""
+        if cv2 is None:
+            raise ProcessingError("OpenCV not available for binarization")
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
@@ -157,6 +179,8 @@ class OptimizedOCRProcessor:
     
     def __init__(self, tesseract_path: str = "/usr/bin/tesseract"):
         self.tesseract_path = tesseract_path
+        if pytesseract is None:
+            raise ProcessingError("pytesseract is not available for OCR")
         pytesseract.pytesseract.tesseract_cmd = tesseract_path
         
         # Optimized OCR configurations for different scenarios
@@ -172,6 +196,8 @@ class OptimizedOCRProcessor:
     
     def _calculate_quality_score(self, image: np.ndarray) -> float:
         """Calculate image quality score for OCR."""
+        if cv2 is None:
+            return 0.0
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
@@ -192,8 +218,10 @@ class OptimizedOCRProcessor:
         
         return max(0.0, min(1.0, quality_score))
     
-    def _extract_with_multiple_configs(self, image: np.ndarray) -> Tuple[str, float, List[Dict]]:
+    def _extract_with_multiple_configs(self, image: "Any") -> Tuple[str, float, List[Dict]]:
         """Extract text using multiple OCR configurations for better accuracy."""
+        if pytesseract is None:
+            raise ProcessingError("pytesseract is not available for OCR")
         best_result = {"text": "", "confidence": 0.0, "blocks": []}
         
         for config_name, config in self.ocr_configs.items():
@@ -252,6 +280,8 @@ class OptimizedOCRProcessor:
         
         try:
             # Load image
+            if cv2 is None:
+                raise ProcessingError("OpenCV not available for reading images")
             image = cv2.imread(image_path)
             if image is None:
                 raise ProcessingError(f"Could not read image: {image_path}")
@@ -310,12 +340,14 @@ def get_file_type(file_path: str) -> str:
     # Basic file type detection based on extension
     _, ext = os.path.splitext(file_path)
     ext = ext.lower()
-    if ext in ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx']:
+    if ext in ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.csv', '.tsv', '.rtf', '.txt']:
         return "document"
     elif ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
         return "image"
-    elif ext in ['.mp4', '.avi', '.mov', '.mkv']:
+    elif ext in ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v']:
         return "video"
+    elif ext in ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a']:
+        return "audio"
     else:
         return "other"
 
@@ -890,7 +922,53 @@ def process_document(file_path: str):
         safety_info_data = _extract_safety_information(extracted_text, extracted_entities)
         technical_spec_data = _extract_technical_specifications(extracted_text, extracted_entities)
         personnel_data = _extract_personnel_data(extracted_text, extracted_entities)
-        
+
+        # Build raw knowledge items for structuring (procedures, safety, equipment)
+        raw_knowledge_items = []
+        try:
+            for proc in procedure_data:
+                steps_text = ' '.join([s.get('description', '') for s in proc.get('steps', [])])
+                raw_knowledge_items.append({
+                    'name': proc.get('title', 'Procedure'),
+                    'description': proc.get('category', ''),
+                    'text': steps_text,
+                    'knowledge_type': 'procedural'
+                })
+            for safety in safety_info_data:
+                raw_knowledge_items.append({
+                    'name': safety.get('hazard', 'Safety'),
+                    'description': safety.get('precaution', ''),
+                    'text': f"PPE: {safety.get('ppe_required','')} Severity: {safety.get('severity','')}",
+                    'knowledge_type': 'explicit'
+                })
+            for equip in equipment_data:
+                raw_knowledge_items.append({
+                    'name': equip.get('name', 'Equipment'),
+                    'description': equip.get('type', ''),
+                    'text': json.dumps(equip.get('specifications', {})),
+                    'knowledge_type': 'explicit'
+                })
+        except Exception as e:
+            log_error(logger, e, "Failed to build raw knowledge items - continuing")
+
+        # Tacit knowledge extraction over full document text
+        tacit_knowledge = {}
+        try:
+            tacit_knowledge = knowledge_extraction_engine.extract_tacit_knowledge(
+                extracted_text or "", entities=extracted_entities or []
+            )
+        except Exception as e:
+            log_error(logger, e, "Tacit knowledge extraction failed - continuing")
+            tacit_knowledge = {}
+
+        # Structure knowledge into hierarchy and enriched items
+        structured_knowledge = {}
+        try:
+            structured_knowledge = knowledge_structuring_framework.structure_knowledge(raw_knowledge_items)
+        except Exception as e:
+            log_error(logger, e, "Knowledge structuring failed - continuing")
+            structured_knowledge = {}
+ 
         return {
             "filename": filename,
             "extracted_text": extracted_text,
@@ -904,6 +982,8 @@ def process_document(file_path: str):
             "technical_spec_data": technical_spec_data,
             "personnel_data": personnel_data,
             "document_sections": document_sections,
+            "tacit_knowledge": tacit_knowledge,
+            "structured_knowledge": structured_knowledge,
             "status": "processed"
         }
         
@@ -1072,6 +1152,8 @@ def process_video(file_path: str):
         print(f"Audio extracted to: {audio_output_path}")
 
         # 2. Transcribe audio using Whisper
+        if whisper is None:
+            raise ProcessingError("Whisper is not available for transcription", file_path=file_path, processing_stage="audio_transcription")
         model = whisper.load_model("base") 
         result = model.transcribe(audio_output_path)
         extracted_text = result["text"]
@@ -1095,6 +1177,27 @@ def process_video(file_path: str):
         safety_info_data = _extract_safety_information(extracted_text, extracted_entities)
         technical_spec_data = _extract_technical_specifications(extracted_text, extracted_entities)
         personnel_data = _extract_personnel_data(extracted_text, extracted_entities)
+
+        # Knowledge extraction and structuring
+        tacit_knowledge = {}
+        structured_knowledge = {}
+        try:
+            tacit_knowledge = knowledge_extraction_engine.extract_tacit_knowledge(extracted_text or "", entities=extracted_entities or [])
+        except Exception as e:
+            metadata["tacit_error"] = str(e)
+        try:
+            raw_knowledge_items = []
+            for proc in procedure_data:
+                steps_text = ' '.join([s.get('description', '') for s in proc.get('steps', [])])
+                raw_knowledge_items.append({
+                    'name': proc.get('title', 'Procedure'),
+                    'description': proc.get('category', ''),
+                    'text': steps_text,
+                    'knowledge_type': 'procedural'
+                })
+            structured_knowledge = knowledge_structuring_framework.structure_knowledge(raw_knowledge_items)
+        except Exception as e:
+            metadata["structuring_error"] = str(e)
 
     except ffmpeg.Error as e:
         print(f"FFmpeg error: {e.stderr.decode()}")
@@ -1123,6 +1226,8 @@ def process_video(file_path: str):
         "technical_spec_data": technical_spec_data,
         "personnel_data": personnel_data,
         "document_sections": document_sections,
+        "tacit_knowledge": tacit_knowledge,
+        "structured_knowledge": structured_knowledge,
         "status": status
     }
 
@@ -1239,7 +1344,30 @@ def process_image(file_path: str) -> Dict:
         result["safety_info_data"] = _extract_safety_information(ocr_result.text, result["extracted_entities"])
         result["technical_spec_data"] = _extract_technical_specifications(ocr_result.text, result["extracted_entities"])
         result["personnel_data"] = _extract_personnel_data(ocr_result.text, result["extracted_entities"])
-        
+
+        # Tacit knowledge and structuring
+        try:
+            result["tacit_knowledge"] = knowledge_extraction_engine.extract_tacit_knowledge(
+                result["extracted_text"] or "", entities=result["extracted_entities"] or []
+            )
+        except Exception as e:
+            log_error(logger, e, "Tacit knowledge extraction failed - continuing")
+            result["tacit_knowledge"] = {}
+        try:
+            raw_knowledge_items = []
+            for proc in result["procedure_data"]:
+                steps_text = ' '.join([s.get('description', '') for s in proc.get('steps', [])])
+                raw_knowledge_items.append({
+                    'name': proc.get('title', 'Procedure'),
+                    'description': proc.get('category', ''),
+                    'text': steps_text,
+                    'knowledge_type': 'procedural'
+                })
+            result["structured_knowledge"] = knowledge_structuring_framework.structure_knowledge(raw_knowledge_items)
+        except Exception as e:
+            log_error(logger, e, "Knowledge structuring failed - continuing")
+            result["structured_knowledge"] = {}
+ 
         logger.info(f"Image processing completed successfully: {filename}")
         
     except Exception as e:
@@ -1252,4 +1380,88 @@ def process_image(file_path: str) -> Dict:
             processing_stage="image_processing"
         ) from e
     
+    return result
+
+def process_audio(file_path: str) -> Dict:
+    """
+    Process audio files by transcribing with Whisper and running the same AI pipeline.
+    """
+    logger.info(f"Processing audio with Whisper: {file_path}")
+    filename = os.path.basename(file_path)
+    result = {
+        "filename": filename,
+        "extracted_text": "",
+        "metadata": {"source": "audio_processor", "original_path": file_path},
+        "extracted_entities": [],
+        "classification": {"category": "unclassified", "score": 0.0},
+        "key_phrases": [],
+        "equipment_data": [],
+        "procedure_data": [],
+        "safety_info_data": [],
+        "technical_spec_data": [],
+        "personnel_data": [],
+        "document_sections": {},
+        "status": "failed"
+    }
+    try:
+        # Transcribe audio directly
+        if whisper is None:
+            raise ProcessingError("Whisper is not available for transcription", file_path=file_path, processing_stage="audio_transcription")
+        model = whisper.load_model("base")
+        transcription = model.transcribe(file_path)
+        text = transcription.get("text", "")
+        result["extracted_text"] = text
+        result["document_sections"] = extract_sections(text)
+        result["status"] = "processed"
+
+        # AI processing
+        try:
+            result["extracted_entities"] = ner_extractor.extract_entities(text)
+        except Exception as e:
+            log_error(logger, e, "NER extraction failed - continuing with empty entities")
+            result["extracted_entities"] = []
+        try:
+            result["classification"] = classifier.classify_document(text, CANDIDATE_LABELS)
+        except Exception as e:
+            log_error(logger, e, "Document classification failed - using default")
+            result["classification"] = {"category": "unclassified", "score": 0.0}
+        try:
+            result["key_phrases"] = keyphrase_extractor.extract_keyphrases(text)
+        except Exception as e:
+            log_error(logger, e, "Keyphrase extraction failed - continuing with empty list")
+            result["key_phrases"] = []
+
+        # Structured data
+        result["equipment_data"] = _extract_equipment_data(text, result["extracted_entities"])
+        result["procedure_data"] = _extract_procedure_data(text, result["extracted_entities"])
+        result["safety_info_data"] = _extract_safety_information(text, result["extracted_entities"])
+        result["technical_spec_data"] = _extract_technical_specifications(text, result["extracted_entities"])
+        result["personnel_data"] = _extract_personnel_data(text, result["extracted_entities"])
+
+        # Tacit and structured knowledge
+        try:
+            result["tacit_knowledge"] = knowledge_extraction_engine.extract_tacit_knowledge(text or "", entities=result["extracted_entities"] or [])
+        except Exception as e:
+            log_error(logger, e, "Tacit knowledge extraction failed - continuing")
+            result["tacit_knowledge"] = {}
+        try:
+            raw_knowledge_items = []
+            for proc in result["procedure_data"]:
+                steps_text = ' '.join([s.get('description', '') for s in proc.get('steps', [])])
+                raw_knowledge_items.append({
+                    'name': proc.get('title', 'Procedure'),
+                    'description': proc.get('category', ''),
+                    'text': steps_text,
+                    'knowledge_type': 'procedural'
+                })
+            result["structured_knowledge"] = knowledge_structuring_framework.structure_knowledge(raw_knowledge_items)
+        except Exception as e:
+            log_error(logger, e, "Knowledge structuring failed - continuing")
+            result["structured_knowledge"] = {}
+
+    except Exception as e:
+        log_error(logger, e, f"Audio processing failed for {filename}")
+        result["status"] = "failed"
+        result["metadata"]["error"] = str(e)
+
     return result

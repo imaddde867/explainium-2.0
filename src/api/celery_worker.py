@@ -1,7 +1,7 @@
 from celery import Celery
 from celery.exceptions import Retry, MaxRetriesExceededError
 from celery.signals import task_prerun, task_postrun, task_failure, task_retry
-from src.processors.document_processor import process_document, process_video, get_file_type
+from src.processors.document_processor import process_document, process_video, process_audio, get_file_type
 from src.database.database import SessionLocal, init_db
 from src.database import crud
 from src.search.elasticsearch_client import es_client
@@ -249,6 +249,8 @@ def process_document_task(self, file_path: str, correlation_id: str = None):
         # Process document
         if file_type == "video":
             result = process_video(file_path)
+        elif file_type == "audio":
+            result = process_audio(file_path)
         else:
             result = process_document(file_path)
         
@@ -392,6 +394,11 @@ def _index_in_elasticsearch(db_document, result: dict):
         "processing_timestamp": db_document.processing_timestamp.isoformat(),
         "document_sections": db_document.document_sections
     }
+    # Optionally include tacit and structured knowledge for search faceting
+    if result.get("tacit_knowledge"):
+        es_document_data["tacit_knowledge"] = result["tacit_knowledge"]
+    if result.get("structured_knowledge"):
+        es_document_data["structured_knowledge"] = result["structured_knowledge"]
     es_client.index_document(es_document_data)
 
 @celery_app.task(bind=True, max_retries=1)

@@ -1,4 +1,8 @@
-from transformers import pipeline
+try:
+    from transformers import pipeline as hf_pipeline  # type: ignore
+except Exception:
+    def hf_pipeline(*args, **kwargs):  # type: ignore
+        raise ImportError("transformers is not installed in this environment")
 
 class Classifier:
     def __init__(self):
@@ -8,7 +12,7 @@ class Classifier:
         if self.classifier is None:
             # Using a zero-shot classification model from Hugging Face
             # This allows classifying text into categories without explicit training on those categories.
-            self.classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+            self.classifier = hf_pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
     def classify_document(self, text: str, candidate_labels: list[str]) -> dict:
         if not text or not isinstance(text, str):
