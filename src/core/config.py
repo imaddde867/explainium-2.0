@@ -77,13 +77,27 @@ class ProcessingConfig:
 
 @dataclass
 class AIConfig:
-    """AI model configuration"""
+    """AI model configuration for local models optimized for M4 Mac"""
+    # Core LLM configuration
+    llm_model: str = "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+    llm_path: str = "./models"
+    max_tokens: int = 2048
+    temperature: float = 0.1  # Low for factual extraction
+    quantization: str = "4bit"
+    
+    # Embedding model
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    
+    # Processing configuration
+    chunk_size: int = 512
+    chunk_overlap: int = 50
+    use_gpu: bool = True  # Metal acceleration on Mac
+    batch_size: int = 4  # Optimized for 16GB RAM
+    
+    # Legacy models (kept for compatibility)
     spacy_model: str = "en_core_web_sm"
-    classification_model: str = "facebook/bart-large-mnli"
-    ner_model: str = "dslim/bert-base-NER"
     whisper_model: str = "base"
     confidence_threshold: float = 0.7
-    enable_gpu: bool = False
     model_cache_dir: str = "models"
 
 
