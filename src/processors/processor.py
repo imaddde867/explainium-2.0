@@ -165,9 +165,17 @@ class DocumentProcessor:
                 'processing_method': 'intelligent_contextual'
             }
             
-            # Extract deep knowledge using the advanced engine
-            knowledge_extraction = await self.advanced_engine.extract_deep_knowledge(enhanced_document)
-            enhanced_document['knowledge_extraction'] = knowledge_extraction
+            # Extract deep knowledge using the NEW AI Knowledge Analyst (3-phase framework)
+            try:
+                knowledge_extraction = await self.advanced_engine.analyze_document_structured(enhanced_document)
+                enhanced_document['knowledge_extraction'] = knowledge_extraction
+                enhanced_document['analysis_method'] = 'ai_knowledge_analyst_3_phase'
+                logger.info("Used AI Knowledge Analyst (3-phase framework) for structured analysis")
+            except Exception as e:
+                logger.warning(f"AI Knowledge Analyst failed, falling back to original method: {e}")
+                knowledge_extraction = await self.advanced_engine.extract_deep_knowledge(enhanced_document)
+                enhanced_document['knowledge_extraction'] = knowledge_extraction
+                enhanced_document['analysis_method'] = 'legacy_extraction'
             
             logger.info(f"Successfully processed document with context: {document.get('id', 'unknown')}")
             return enhanced_document
@@ -284,9 +292,17 @@ class DocumentProcessor:
                         }
                     }
                     
-                    knowledge = loop.run_until_complete(
-                        self.advanced_engine.extract_deep_knowledge(document_data)
-                    )
+                    # Use NEW AI Knowledge Analyst (3-phase framework) as primary method
+                    try:
+                        knowledge = loop.run_until_complete(
+                            self.advanced_engine.analyze_document_structured(document_data)
+                        )
+                        logger.info("Successfully used AI Knowledge Analyst (3-phase framework)")
+                    except Exception as analyst_error:
+                        logger.warning(f"AI Knowledge Analyst failed, using legacy method: {analyst_error}")
+                        knowledge = loop.run_until_complete(
+                            self.advanced_engine.extract_deep_knowledge(document_data)
+                        )
                     loop.close()
                     
                 except Exception as e:

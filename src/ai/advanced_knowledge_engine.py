@@ -37,6 +37,7 @@ except ImportError:
 # Internal imports
 from src.logging_config import get_logger
 from src.core.config import AIConfig
+from src.ai.knowledge_analyst import AIKnowledgeAnalyst, SynthesizedKnowledge
 
 logger = get_logger(__name__)
 
@@ -249,12 +250,13 @@ class ModelManager:
 
 
 class AdvancedKnowledgeEngine:
-    """Advanced knowledge extraction engine using local AI models"""
+    """Advanced knowledge extraction engine using local AI models with AI Knowledge Analyst integration"""
     
     def __init__(self, config: AIConfig):
         self.config = config
         self.model_manager = ModelManager(config)
         self.knowledge_graph = Neo4jLiteGraph()
+        self.knowledge_analyst = AIKnowledgeAnalyst(config)
         self.llm = None
         self.embedder = None
         self.initialized = False
@@ -270,8 +272,12 @@ class AdvancedKnowledgeEngine:
             self.embedder = await self.model_manager.load_embedding_model(
                 self.config.embedding_model
             )
+            
+            # Initialize AI Knowledge Analyst
+            await self.knowledge_analyst.initialize()
+            
             self.initialized = True
-            logger.info("Advanced Knowledge Engine initialized successfully")
+            logger.info("Advanced Knowledge Engine with AI Knowledge Analyst initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize knowledge engine: {e}")
@@ -316,6 +322,78 @@ class AdvancedKnowledgeEngine:
         await self._build_knowledge_graph(results['passes'], metadata)
         
         return results
+    
+    async def analyze_document_structured(self, document: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        NEW: Use AI Knowledge Analyst for structured document analysis
+        This is the new primary method that implements the 3-phase framework
+        """
+        if not self.initialized:
+            await self.initialize()
+        
+        content = document.get('content', '')
+        metadata = document.get('metadata', {})
+        
+        logger.info("Starting structured document analysis with AI Knowledge Analyst")
+        
+        try:
+            # Use the new AI Knowledge Analyst
+            synthesized_knowledge = await self.knowledge_analyst.analyze_document(content, metadata)
+            
+            # Convert to the expected format for backward compatibility
+            results = {
+                'extraction_timestamp': synthesized_knowledge.metadata.get('analysis_timestamp'),
+                'document_id': document.get('id'),
+                'analysis_type': 'structured_knowledge_analyst',
+                'document_context': {
+                    'type': synthesized_knowledge.document_context.document_type.value,
+                    'purpose': synthesized_knowledge.document_context.primary_purpose,
+                    'audience': synthesized_knowledge.document_context.intended_audience,
+                    'complexity': synthesized_knowledge.document_context.complexity_level,
+                    'domain': synthesized_knowledge.document_context.domain,
+                    'confidence': synthesized_knowledge.document_context.confidence
+                },
+                'structured_output': {
+                    'summary': synthesized_knowledge.synthesized_summary,
+                    'actionable_insights': synthesized_knowledge.actionable_insights,
+                    'key_takeaways': synthesized_knowledge.key_takeaways,
+                    'markdown_report': synthesized_knowledge.structured_markdown
+                },
+                'thematic_analysis': {},
+                'knowledge_items': []
+            }
+            
+            # Convert thematic buckets to knowledge items
+            for info_type, bucket in synthesized_knowledge.thematic_buckets.items():
+                bucket_data = {
+                    'category': info_type.value,
+                    'priority': bucket.priority,
+                    'item_count': len(bucket.items),
+                    'items': bucket.items,
+                    'relationships': bucket.relationships
+                }
+                results['thematic_analysis'][info_type.value] = bucket_data
+                
+                # Add individual items to knowledge_items for backward compatibility
+                for item in bucket.items:
+                    knowledge_item = {
+                        'type': info_type.value,
+                        'category': info_type.value.replace('_', ' ').title(),
+                        'content': str(item),
+                        'priority': bucket.priority,
+                        'confidence': item.get('confidence', 0.8),
+                        'metadata': item
+                    }
+                    results['knowledge_items'].append(knowledge_item)
+            
+            logger.info(f"Structured analysis completed. Extracted {len(results['knowledge_items'])} knowledge items across {len(results['thematic_analysis'])} categories")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Structured document analysis failed: {e}")
+            # Fallback to original extraction method
+            logger.info("Falling back to original extraction method")
+            return await self.extract_deep_knowledge(document)
     
     async def _extract_concepts(self, content: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Extract key concepts and entities from content"""
