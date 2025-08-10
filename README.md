@@ -1,13 +1,28 @@
-# EXPLAINIUM - AI Knowledge Analyst
+# 🧠 EXPLAINIUM - Enterprise Knowledge Extraction System v2.0
 
-A production-ready platform that transforms any unstructured document into a structured, actionable, and synthesized knowledge base. Powered by a sophisticated 3-phase AI framework that moves beyond simple text extraction to provide deep, contextual understanding.
+A production-ready platform that transforms any unstructured document into a structured, actionable, and synthesized knowledge base. Powered by a sophisticated 3-phase AI framework with **real-time progress tracking** and a modern, professional interface.
 
-**🧠 AI Knowledge Analyst Framework:**
+## ✨ New Features in v2.0
+
+### 📊 Real-Time Progress Tracking
+- **Live Progress Bar**: See processing completion percentage (10%, 20%, etc.)
+- **Detailed Status Updates**: Know exactly what the system is doing at each step
+- **Professional UI**: Clean, modern interface with enhanced user experience
+- **Background Processing**: Upload files and track progress asynchronously
+
+### 🧠 AI Knowledge Analyst Framework
 - **Phase 1:** Holistic Comprehension - Understands document purpose, audience, and structure
 - **Phase 2:** Thematic Abstraction - Categorizes information into actionable buckets  
 - **Phase 3:** Synthesis & Structured Output - Creates coherent, markdown-formatted knowledge reports
 
-— Clear impact: faster reporting, better process documentation, quicker compliance reviews, and actionable insights from any document type.
+### 🎯 Production-Ready Features
+- **Health Monitoring**: Comprehensive system health checks
+- **Scalable Architecture**: Celery-based task queue for handling multiple files
+- **Professional UI/UX**: Modern design with progress indicators and analytics
+- **Export Capabilities**: CSV and JSON export options
+- **Enhanced Security**: Production-ready configuration and security measures
+
+**Impact:** Faster reporting, better process documentation, quicker compliance reviews, and actionable insights from any document type with real-time feedback.
 
 ## Quick Start (First Time Setup)
 
@@ -22,8 +37,20 @@ cd explainium-2.0
 # 3. Run automated setup 
 chmod +x setup.sh && ./setup.sh
 
-# 4. Start the application
+# 4. Validate installation (NEW)
+python scripts/validate_installation.py
+
+# 5. Start the application
 ./start.sh
+```
+
+### Production Deployment
+```bash
+# For production deployment
+./scripts/production_deploy.sh
+
+# Monitor system health
+python scripts/health_check.py --monitor
 ```
 
 ### Launch Application
@@ -36,16 +63,26 @@ Success: Your system is now running at:
 - API Backend: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
-### First Steps
+### First Steps with v2.0
 1. **Open** http://localhost:8501 in your browser
-2. **Upload** any file (PDF, image, video, audio)
-3. **Click** the processing button
-4. **Watch** AI Knowledge Analyst transform your document using the 3-phase framework!
-5. **Explore** the structured knowledge base with prioritized insights
+2. **Upload** any file (PDF, image, video, audio) using the new professional interface
+3. **Select** "Use Backend Processing" for progress tracking (recommended)
+4. **Click** the processing button and **watch** the real-time progress bar!
+5. **Monitor** detailed progress updates (10%, 20%, 40%, 60%, 80%, 95%, 100%)
+6. **View** comprehensive processing results and analytics
+7. **Explore** the structured knowledge base with enhanced visualizations
 
 ---
 
 ## Key Features
+
+### 📊 Real-Time Progress Tracking (NEW in v2.0)
+- **Live Progress Updates**: Visual progress bar showing completion percentage
+- **Detailed Status Messages**: Step-by-step processing information
+- **Background Processing**: Upload files and continue working while processing occurs
+- **Task Management**: Track multiple processing tasks simultaneously
+- **Professional UI**: Modern, clean interface with enhanced user experience
+- **Processing Analytics**: View detailed statistics and results after completion
 
 ### Multi-Modal AI Processing
 - Documents: PDF, TXT, DOCX with deep text analysis

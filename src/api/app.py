@@ -271,6 +271,18 @@ async def get_task_status_endpoint(task_id: str):
         raise HTTPException(status_code=500, detail="Failed to get task status")
 
 
+@app.get("/workers/stats")
+async def get_worker_stats_endpoint():
+    """Get Celery worker statistics for monitoring"""
+    try:
+        from api.celery_worker import get_worker_stats
+        stats = get_worker_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting worker stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get worker statistics")
+
+
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():

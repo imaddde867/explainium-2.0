@@ -136,7 +136,7 @@ def task_failure_handler(sender=None, task_id=None, exception=None, traceback=No
 @celery_app.task(bind=True, name='process_document_task')
 def process_document_task(self, file_path: str, document_id: int) -> Dict[str, Any]:
     """
-    Process a document and extract knowledge
+    Process a document and extract knowledge with detailed progress tracking
     
     Args:
         file_path: Path to the document file
@@ -147,6 +147,30 @@ def process_document_task(self, file_path: str, document_id: int) -> Dict[str, A
     """
     task_id = self.request.id
     logger.info(f"Processing document {document_id} at {file_path} (Task: {task_id})")
+    
+    def update_progress(percentage: int, message: str):
+        """Helper function to update both Celery state and database"""
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': percentage, 
+                'total': 100, 
+                'status': message,
+                'percentage': percentage
+            }
+        )
+        # Also update database
+        try:
+            with get_db_session() as db:
+                crud.update_task_progress(
+                    db=db,
+                    task_id=task_id,
+                    status="running",
+                    progress_percentage=percentage,
+                    current_step=message
+                )
+        except Exception as e:
+            logger.warning(f"Failed to update database progress: {e}")
     
     try:
         # Update document status to processing
@@ -163,34 +187,32 @@ def process_document_task(self, file_path: str, document_id: int) -> Dict[str, A
                 task_id=task_id,
                 task_type="document_processing",
                 document_id=document_id,
-                total_steps=5
+                total_steps=10  # More granular steps
             )
         
-        # Update progress: Starting processing
-        self.update_state(
-            state='PROGRESS',
-            meta={'current': 1, 'total': 5, 'status': 'Starting document processing'}
-        )
+        # Step 1: Initialize processing (10%)
+        update_progress(10, "Initializing document processing...")
         
-        # Process the document
+        # Step 2: File validation and type detection (20%)
+        update_progress(20, "Validating file and detecting format...")
+        
+        # Step 3: Content extraction (40%)
+        update_progress(40, "Extracting content from document...")
         logger.info(f"Starting document processing for {file_path}")
         processing_result = document_processor.process_document(file_path, document_id)
         
-        # Update progress: Document processed
-        self.update_state(
-            state='PROGRESS',
-            meta={'current': 2, 'total': 5, 'status': 'Document content extracted'}
-        )
+        # Step 4: AI analysis (60%)
+        update_progress(60, "Analyzing content with AI...")
+        
+        # Step 5: Knowledge extraction (70%)
+        update_progress(70, "Extracting structured knowledge...")
         
         # Store extracted knowledge in database
         with db_transaction() as db:
             knowledge = processing_result.get('knowledge', {})
             
-            # Update progress: Storing processes
-            self.update_state(
-                state='PROGRESS',
-                meta={'current': 3, 'total': 5, 'status': 'Storing extracted processes'}
-            )
+            # Step 6: Storing processes (80%)
+            update_progress(80, "Storing extracted processes...")
             
             # Store processes
             processes_created = 0
@@ -217,11 +239,8 @@ def process_document_task(self, file_path: str, document_id: int) -> Dict[str, A
                 except Exception as e:
                     logger.error(f"Failed to create process: {e}")
             
-            # Update progress: Storing decision points
-            self.update_state(
-                state='PROGRESS',
-                meta={'current': 4, 'total': 5, 'status': 'Storing decision points'}
-            )
+            # Step 7: Storing decision points (85%)
+            update_progress(85, "Storing decision points...")
             
             # Store decision points
             decisions_created = 0
@@ -243,6 +262,9 @@ def process_document_task(self, file_path: str, document_id: int) -> Dict[str, A
                 except Exception as e:
                     logger.error(f"Failed to create decision point: {e}")
             
+            # Step 8: Storing compliance items (90%)
+            update_progress(90, "Storing compliance requirements...")
+            
             # Store compliance items
             compliance_created = 0
             for compliance_data in knowledge.get('compliance_items', []):
@@ -250,37 +272,19 @@ def process_document_task(self, file_path: str, document_id: int) -> Dict[str, A
                     crud.create_compliance_item(
                         db=db,
                         document_id=document_id,
-                        regulation_name=compliance_data['regulation_name'],
                         requirement=compliance_data['requirement'],
-                        status=models.ComplianceStatus.PENDING,
-                        confidence=compliance_data['confidence'],
-                        regulation_section=compliance_data.get('section'),
+                        description=compliance_data['description'],
+                        category=compliance_data.get('category', 'general'),
+                        mandatory=compliance_data.get('mandatory', True),
+                        deadline=compliance_data.get('deadline'),
                         responsible_party=compliance_data.get('responsible_party'),
-                        source_text=compliance_data.get('requirement', '')[:1000]
+                        verification_method=compliance_data.get('verification_method'),
+                        confidence=compliance_data['confidence'],
+                        source_text=compliance_data.get('description', '')[:1000]
                     )
                     compliance_created += 1
                 except Exception as e:
                     logger.error(f"Failed to create compliance item: {e}")
-            
-            # Store risk assessments
-            risks_created = 0
-            for risk_data in knowledge.get('risk_assessments', []):
-                try:
-                    crud.create_risk_assessment(
-                        db=db,
-                        document_id=document_id,
-                        hazard=risk_data['hazard'],
-                        risk_description=risk_data['risk_description'],
-                        likelihood=risk_data.get('likelihood', 'unknown'),
-                        impact=risk_data.get('impact', 'unknown'),
-                        overall_risk_level=models.RiskLevel(risk_data.get('overall_risk_level', 'medium')),
-                        confidence=risk_data['confidence'],
-                        mitigation_strategies=risk_data.get('mitigation_strategies', []),
-                        source_text=risk_data.get('risk_description', '')[:1000]
-                    )
-                    risks_created += 1
-                except Exception as e:
-                    logger.error(f"Failed to create risk assessment: {e}")
             
             # Store knowledge entities
             entities_created = 0
@@ -289,56 +293,58 @@ def process_document_task(self, file_path: str, document_id: int) -> Dict[str, A
                     crud.create_knowledge_entity(
                         db=db,
                         document_id=document_id,
-                        text=entity_data['text'],
-                        label=entity_data['label'],
+                        name=entity_data['name'],
+                        entity_type=entity_data.get('type', 'general'),
+                        description=entity_data['description'],
+                        properties=entity_data.get('properties', {}),
+                        relationships=entity_data.get('relationships', []),
                         confidence=entity_data['confidence'],
-                        context=entity_data.get('context', '')[:500]  # Limit context length
+                        source_text=entity_data.get('description', '')[:1000]
                     )
                     entities_created += 1
                 except Exception as e:
                     logger.error(f"Failed to create knowledge entity: {e}")
         
-        # Update progress: Finalizing
-        self.update_state(
-            state='PROGRESS',
-            meta={'current': 5, 'total': 5, 'status': 'Finalizing processing'}
-        )
+        # Step 9: Finalizing (95%)
+        update_progress(95, "Finalizing processing...")
         
         # Update document status to completed
         with get_db_session() as db:
-            document = crud.update_document_status(
+            crud.update_document_status(
                 db=db,
                 document_id=document_id,
                 status=models.ProcessingStatus.COMPLETED
             )
             
-            # Update document metadata
-            if document:
-                text_content = (processing_result.get('content', {}) or {}).get('text', '') or ''
-                document.total_pages = (processing_result.get('content', {}) or {}).get('page_count')
-                document.total_words = len(text_content.split()) if text_content else 0
-                document.total_characters = len(text_content)
-                document.language = (processing_result.get('content', {}) or {}).get('language', 'en')
-                db.commit()
+            # Update processing task
+            crud.update_task_progress(
+                db=db,
+                task_id=task_id,
+                status="completed",
+                progress_percentage=100,
+                current_step="Processing completed successfully",
+                result=processing_result
+            )
         
-        # Prepare result summary
+        # Step 10: Complete (100%)
+        update_progress(100, "Processing completed successfully!")
+        
+        # Prepare final result
         result = {
+            'task_id': task_id,
             'document_id': document_id,
-            'filename': os.path.basename(file_path),
-            'processing_status': 'completed',
-            'knowledge_extracted': {
-                'processes': processes_created,
-                'decision_points': decisions_created,
-                'compliance_items': compliance_created,
-                'risk_assessments': risks_created,
-                'entities': entities_created
-            },
-            'overall_confidence': knowledge.get('overall_confidence', 0.0),
-            'processing_time': processing_result.get('processing_time'),
+            'filename': file_path.name,
+            'status': 'completed',
+            'knowledge_extracted': len(knowledge.get('processes', [])) + len(knowledge.get('decision_points', [])) + len(knowledge.get('compliance_items', [])) + len(knowledge.get('entities', [])),
+            'processes_created': processes_created,
+            'decisions_created': decisions_created,
+            'compliance_created': compliance_created,
+            'entities_created': entities_created,
+            'processing_result': processing_result,
             'completed_at': datetime.now().isoformat()
         }
         
-        logger.info(f"Successfully processed document {document_id}: {result['knowledge_extracted']}")
+        logger.info(f"Successfully processed document {document_id}: {result['knowledge_extracted']} items extracted")
         return result
         
     except Exception as e:

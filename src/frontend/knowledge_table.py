@@ -26,6 +26,17 @@ except ImportError:
     except ImportError:
         STRUCTURED_DISPLAY_AVAILABLE = False
 
+# Import progress tracking components
+try:
+    from frontend.progress_tracker import ProgressTracker, create_professional_upload_interface, display_processing_stats
+    PROGRESS_TRACKER_AVAILABLE = True
+except ImportError:
+    try:
+        from src.frontend.progress_tracker import ProgressTracker, create_professional_upload_interface, display_processing_stats
+        PROGRESS_TRACKER_AVAILABLE = True
+    except ImportError:
+        PROGRESS_TRACKER_AVAILABLE = False
+
 # Simple approach: just check if we can import the basic AI components
 AI_AVAILABLE = False
 import_error_msg = ""
@@ -844,127 +855,352 @@ def get_demo_data():
 def main():
     """Main application"""
     st.set_page_config(
-        page_title="EXPLAINIUM Knowledge Table",
+        page_title="EXPLAINIUM - Knowledge Extraction System",
+        page_icon="🧠",
         layout="wide",
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="expanded",
+        menu_items={
+            'Get Help': 'https://github.com/imaddde867/explainium-2.0',
+            'Report a bug': 'https://github.com/imaddde867/explainium-2.0/issues',
+            'About': "EXPLAINIUM v2.0 - Professional Knowledge Extraction System"
+        }
     )
     
-    st.title("EXPLAINIUM Knowledge Table")
-    st.markdown("Deep Knowledge Extraction and Analysis Dashboard")
+    # Custom CSS for professional styling
+    st.markdown("""
+    <style>
+    .main {
+        padding-top: 1rem;
+    }
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    .header-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        color: white;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .header-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .header-subtitle {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        font-weight: 300;
+    }
+    .metric-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #1f77b4;
+    }
+    .sidebar .sidebar-content {
+        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    # Show AI engine status prominently
-    if AI_AVAILABLE:
-        st.success("AI Engine Active - Advanced knowledge extraction ready.")
-    else:
-        st.warning("AI Engine Unavailable - Using text analysis fallback")
-        if st.button("Retry AI Engine Loading"):
-            st.rerun()
+    # Professional header
+    st.markdown("""
+    <div class="header-container">
+        <div class="header-title">🧠 EXPLAINIUM</div>
+        <div class="header-subtitle">Enterprise Knowledge Extraction System v2.0</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Show system status in a professional card
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        ai_status = "🟢 Active" if AI_AVAILABLE else "🟡 Fallback Mode"
+        ai_color = "#28a745" if AI_AVAILABLE else "#ffc107"
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4 style="margin: 0; color: {ai_color};">🤖 AI Engine</h4>
+            <p style="margin: 0.5rem 0 0 0; font-size: 1.1rem;">{ai_status}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        progress_status = "🟢 Available" if PROGRESS_TRACKER_AVAILABLE else "🔴 Unavailable"
+        progress_color = "#28a745" if PROGRESS_TRACKER_AVAILABLE else "#dc3545"
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4 style="margin: 0; color: {progress_color};">📊 Progress Tracking</h4>
+            <p style="margin: 0.5rem 0 0 0; font-size: 1.1rem;">{progress_status}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        structured_status = "🟢 Available" if STRUCTURED_DISPLAY_AVAILABLE else "🔴 Unavailable"
+        structured_color = "#28a745" if STRUCTURED_DISPLAY_AVAILABLE else "#dc3545"
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4 style="margin: 0; color: {structured_color};">🏗️ Structured Display</h4>
+            <p style="margin: 0.5rem 0 0 0; font-size: 1.1rem;">{structured_status}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Show retry option for AI engine if needed
+    if not AI_AVAILABLE:
+        with st.expander("🔧 AI Engine Troubleshooting", expanded=False):
+            st.info("The AI engine is using fallback mode. This provides basic text analysis.")
+            st.code(f"Error: {import_error_msg}")
+            if st.button("🔄 Retry AI Engine Loading"):
+                st.rerun()
     
     # Initialize session state
     if 'knowledge_data' not in st.session_state:
         st.session_state.knowledge_data = []
     
-    # Sidebar controls
+    # Enhanced sidebar with professional styling
     with st.sidebar:
-        st.header("Controls")
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            color: white;
+            text-align: center;
+        ">
+            <h3 style="margin: 0;">⚙️ Control Panel</h3>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # AI Status
-        if AI_AVAILABLE:
-            st.success("AI Engine Available")
-            st.info("Advanced AI models ready for processing")
+        # System Status Section
+        st.markdown("### 🔍 System Status")
+        
+        # Compact status indicators
+        status_items = [
+            ("🤖 AI Engine", AI_AVAILABLE, "Advanced knowledge extraction"),
+            ("📊 Progress Tracking", PROGRESS_TRACKER_AVAILABLE, "Real-time processing updates"),
+            ("🏗️ Structured Display", STRUCTURED_DISPLAY_AVAILABLE, "Enhanced knowledge visualization")
+        ]
+        
+        for name, available, description in status_items:
+            status_icon = "✅" if available else "⚠️"
+            status_color = "#28a745" if available else "#ffc107"
+            st.markdown(f"""
+            <div style="
+                background: white;
+                padding: 0.5rem;
+                border-radius: 4px;
+                margin: 0.25rem 0;
+                border-left: 3px solid {status_color};
+            ">
+                <strong>{status_icon} {name}</strong><br>
+                <small style="color: #666;">{description}</small>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # File upload with progress tracking
+        if PROGRESS_TRACKER_AVAILABLE:
+            # Use new professional upload interface
+            uploaded_file = create_professional_upload_interface()
         else:
-            st.warning("AI Engine Unavailable")
-            st.info("Using text analysis fallback")
-            with st.expander("Debug Info"):
-                st.code(f"Error: {import_error_msg}")
-                st.info("The system will still work with text-based analysis")
-        
-        # File upload
-        st.subheader("Upload Media")
-        
-        # Show supported formats
-        with st.expander("Supported Formats"):
-            st.markdown("""
-            Documents: PDF, TXT, DOCX
-            Images: JPG, PNG, GIF, BMP, TIFF
-            Videos: MP4, AVI, MOV, MKV
-            Audio: MP3, WAV, FLAC
-            """)
-        
-        uploaded_file = st.file_uploader(
-            "Choose a file",
-            type=['pdf', 'txt', 'docx', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'mp4', 'avi', 'mov', 'mkv', 'mp3', 'wav', 'flac'],
-            help="Upload any supported media type for AI-powered knowledge extraction"
-        )
+            # Fallback to basic upload interface
+            st.subheader("Upload Media")
+            
+            # Show supported formats
+            with st.expander("Supported Formats"):
+                st.markdown("""
+                Documents: PDF, TXT, DOCX
+                Images: JPG, PNG, GIF, BMP, TIFF
+                Videos: MP4, AVI, MOV, MKV
+                Audio: MP3, WAV, FLAC
+                """)
+            
+            uploaded_file = st.file_uploader(
+                "Choose a file",
+                type=['pdf', 'txt', 'docx', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'mp4', 'avi', 'mov', 'mkv', 'mp3', 'wav', 'flac'],
+                help="Upload any supported media type for AI-powered knowledge extraction"
+            )
         
         if uploaded_file is not None:
-            # Show file info
+            # Show file info with modern styling
             file_type = uploaded_file.type
-            if file_type.startswith("image/"):
-                st.info(f"Image: {uploaded_file.name}")
-                button_text = "Analyze Image"
-                spinner_text = "Analyzing image with computer vision..."
-            elif file_type.startswith("video/"):
-                st.info(f"Video: {uploaded_file.name}")
-                button_text = "Process Video"
-                spinner_text = "Processing video with scene analysis..."
-            elif file_type.startswith("audio/"):
-                st.info(f"Audio: {uploaded_file.name}")
-                button_text = "Transcribe Audio"
-                spinner_text = "Transcribing audio with Whisper AI..."
-            else:
-                st.info(f"Document: {uploaded_file.name}")
-                button_text = "Process Document"
-                spinner_text = "Processing document with AI..."
+            file_size = len(uploaded_file.getvalue()) / 1024 / 1024  # Size in MB
             
-            if st.button(button_text, type="primary"):
-                with st.spinner(spinner_text):
-                    new_knowledge = process_document(uploaded_file, AI_AVAILABLE)
+            # File info display
+            st.markdown(f"""
+            <div style="
+                background: #f8f9fa;
+                padding: 1rem;
+                border-radius: 8px;
+                border-left: 4px solid #28a745;
+                margin: 1rem 0;
+            ">
+                <strong>📎 {uploaded_file.name}</strong><br>
+                <small>Type: {file_type} | Size: {file_size:.2f} MB</small>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Determine processing type and button text
+            if file_type.startswith("image/"):
+                button_text = "🖼️ Analyze Image"
+                process_description = "Computer vision analysis with OCR"
+            elif file_type.startswith("video/"):
+                button_text = "🎥 Process Video"
+                process_description = "Video analysis with scene detection and audio transcription"
+            elif file_type.startswith("audio/"):
+                button_text = "🎵 Transcribe Audio"
+                process_description = "Audio transcription with Whisper AI"
+            else:
+                button_text = "📄 Process Document"
+                process_description = "AI-powered document analysis and knowledge extraction"
+            
+            # Processing options
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                use_backend_processing = st.checkbox(
+                    "Use Backend Processing (Recommended)", 
+                    value=True,
+                    help="Use the backend API for robust processing with progress tracking"
+                )
+            with col2:
+                use_ai = st.checkbox("Enable AI Analysis", value=AI_AVAILABLE, disabled=not AI_AVAILABLE)
+            
+            st.markdown(f"**Processing Method:** {process_description}")
+            
+            if st.button(button_text, type="primary", use_container_width=True):
+                if use_backend_processing and PROGRESS_TRACKER_AVAILABLE:
+                    # Use new backend processing with progress tracking
+                    progress_tracker = ProgressTracker()
                     
-                    # Check if we have structured knowledge from the new AI Knowledge Analyst
-                    if 'current_structured_knowledge' in st.session_state:
-                        st.success("✨ Document analyzed with AI Knowledge Analyst (3-phase framework)")
-                        st.rerun()
-                    elif new_knowledge:
-                        # Add new knowledge to existing data (legacy format)
-                        st.session_state.knowledge_data.extend(new_knowledge)
-                        st.success(f"Extracted {len(new_knowledge)} knowledge items.")
-                        st.rerun()
-                    else:
-                        st.error("Failed to extract knowledge from the document.")
+                    # Upload file and get task ID
+                    with st.spinner("🚀 Uploading file..."):
+                        task_id = progress_tracker.upload_file_with_progress(uploaded_file, uploaded_file.name)
+                    
+                    if task_id:
+                        st.success(f"✅ File uploaded successfully! Task ID: {task_id[:8]}...")
+                        
+                        # Track progress with real-time updates
+                        progress_container = st.empty()
+                        final_result = progress_tracker.track_processing_progress(task_id, progress_container)
+                        
+                        # Display results
+                        if final_result.get('status') == 'SUCCESS':
+                            display_processing_stats(final_result)
+                            st.rerun()  # Refresh to show new data
+                        
+                else:
+                    # Fallback to local processing
+                    with st.spinner("Processing document locally..."):
+                        new_knowledge = process_document(uploaded_file, use_ai)
+                        
+                        # Check if we have structured knowledge from the new AI Knowledge Analyst
+                        if 'current_structured_knowledge' in st.session_state:
+                            st.success("✨ Document analyzed with AI Knowledge Analyst (3-phase framework)")
+                            st.rerun()
+                        elif new_knowledge:
+                            # Add new knowledge to existing data (legacy format)
+                            st.session_state.knowledge_data.extend(new_knowledge)
+                            st.success(f"Extracted {len(new_knowledge)} knowledge items.")
+                            st.rerun()
+                        else:
+                            st.error("Failed to extract knowledge from the document.")
         
-        # Filters
-        st.subheader("Filters")
+        # Enhanced Filters Section
+        st.markdown("### 🔍 Filters & Search")
         
-        knowledge_types = st.multiselect(
-            "Knowledge Types",
-            ["concepts", "processes", "systems", "requirements", "risks", "people"],
-            default=["concepts", "processes", "systems", "requirements", "risks", "people"]
+        # Search with enhanced styling
+        search_term = st.text_input(
+            "🔎 Search Knowledge",
+            placeholder="Search across all knowledge items...",
+            help="Search in knowledge content, descriptions, and sources"
         )
         
+        # Knowledge type filter with icons
+        st.markdown("**📋 Knowledge Types**")
+        knowledge_types = st.multiselect(
+            "Select types to display",
+            ["concepts", "processes", "systems", "requirements", "risks", "people"],
+            default=["concepts", "processes", "systems", "requirements", "risks", "people"],
+            format_func=lambda x: {
+                "concepts": "💡 Concepts",
+                "processes": "⚙️ Processes", 
+                "systems": "🏗️ Systems",
+                "requirements": "📋 Requirements",
+                "risks": "⚠️ Risks",
+                "people": "👥 People"
+            }.get(x, x),
+            label_visibility="collapsed"
+        )
+        
+        # Confidence range with better labeling
+        st.markdown("**🎯 Confidence Threshold**")
         confidence_range = st.slider(
-            "Confidence Range",
+            "Filter by confidence level",
             min_value=0.0,
             max_value=1.0,
             value=(0.0, 1.0),
-            step=0.1
+            step=0.05,
+            format="%.0f%%",
+            help="Show only knowledge items within this confidence range",
+            label_visibility="collapsed"
         )
         
-        search_term = st.text_input("Search", placeholder="Search knowledge...")
-        
-        # Data management
+        # Data management with enhanced styling
+        st.markdown("### 🗂️ Data Management")
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("Clear All"):
+            if st.button("🗑️ Clear All", use_container_width=True):
                 st.session_state.knowledge_data = []
                 st.success("All data cleared.")
                 st.rerun()
         
         with col_b:
-            if st.button("Load Demo"):
+            if st.button("📊 Load Demo", use_container_width=True):
                 st.session_state.knowledge_data = get_demo_data()
                 st.success("Demo data loaded.")
                 st.rerun()
+        
+        # Export options
+        if st.session_state.knowledge_data:
+            st.markdown("### 📤 Export Options")
+            col_export1, col_export2 = st.columns(2)
+            with col_export1:
+                if st.button("📄 Export CSV", use_container_width=True):
+                    df = pd.DataFrame(st.session_state.knowledge_data)
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        "⬇️ Download CSV",
+                        csv,
+                        "knowledge_export.csv",
+                        "text/csv",
+                        use_container_width=True
+                    )
+            with col_export2:
+                if st.button("📋 Export JSON", use_container_width=True):
+                    json_data = json.dumps(st.session_state.knowledge_data, indent=2)
+                    st.download_button(
+                        "⬇️ Download JSON",
+                        json_data,
+                        "knowledge_export.json",
+                        "application/json",
+                        use_container_width=True
+                    )
     
     # Main content - Check for structured knowledge first
     if 'current_structured_knowledge' in st.session_state and STRUCTURED_DISPLAY_AVAILABLE:
@@ -985,14 +1221,11 @@ def main():
                     del st.session_state['current_structured_knowledge']
                 st.rerun()
     else:
-        # Legacy knowledge table display
-        col1, col2 = st.columns([3, 1])
+        # Enhanced knowledge table display
+        st.markdown("### 📊 Knowledge Database")
         
-        with col1:
-            st.header("Knowledge Table")
-            
-            # Get and filter data
-            df = pd.DataFrame(st.session_state.knowledge_data)
+        # Get and filter data
+        df = pd.DataFrame(st.session_state.knowledge_data)
         
         # Apply filters only if DataFrame is not empty
         if not df.empty:
@@ -1011,72 +1244,162 @@ def main():
             if search_term and 'Knowledge' in df.columns:
                 df = df[df['Knowledge'].str.contains(search_term, case=False, na=False)]
         
-        # Display data
+        # Display data with enhanced styling
         if df.empty:
             if len(st.session_state.knowledge_data) == 0:
-                st.info("Get Started: Upload a document, image, video, or audio file to extract knowledge.")
+                # Empty state with professional design
                 st.markdown("""
-                **Or try:**
-                - Click "Load Demo" to see example data
-                - Upload any supported file type for AI analysis
-                """)
+                <div style="
+                    text-align: center;
+                    padding: 3rem;
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    margin: 2rem 0;
+                ">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">📚</div>
+                    <h3 style="color: #333; margin-bottom: 1rem;">Welcome to EXPLAINIUM</h3>
+                    <p style="color: #666; font-size: 1.1rem; margin-bottom: 2rem;">
+                        Upload documents to extract structured knowledge with AI
+                    </p>
+                    <div style="
+                        background: #f8f9fa;
+                        padding: 1rem;
+                        border-radius: 8px;
+                        border-left: 4px solid #17a2b8;
+                    ">
+                        <strong>Quick Start:</strong><br>
+                        • Upload any document, image, video, or audio file<br>
+                        • Click "📊 Load Demo" to explore sample data<br>
+                        • Use filters to refine your view
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                st.info("No data matches your current filters. Try adjusting the filters above.")
+                st.markdown("""
+                <div style="
+                    text-align: center;
+                    padding: 2rem;
+                    background: #fff3cd;
+                    border: 1px solid #ffeaa7;
+                    border-radius: 8px;
+                    margin: 1rem 0;
+                ">
+                    <h4 style="color: #856404;">🔍 No Results Found</h4>
+                    <p style="color: #856404;">No data matches your current filters. Try adjusting the search criteria.</p>
+                </div>
+                """, unsafe_allow_html=True)
         else:
+            # Show data summary
+            total_items = len(df)
+            unique_sources = df['Source'].nunique() if 'Source' in df.columns else 0
+            avg_confidence = df['Confidence'].mean() if 'Confidence' in df.columns else 0
+            
+            # Summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📊 Total Items", total_items)
+            with col2:
+                st.metric("📁 Sources", unique_sources)
+            with col3:
+                st.metric("🎯 Avg Confidence", f"{avg_confidence:.1%}" if avg_confidence > 0 else "N/A")
+            with col4:
+                filtered_ratio = len(df) / len(st.session_state.knowledge_data) if st.session_state.knowledge_data else 0
+                st.metric("🔍 Filtered", f"{filtered_ratio:.1%}")
+            
+            st.divider()
+            
+            # Enhanced dataframe display
             st.dataframe(
                 df,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
                     "Confidence": st.column_config.ProgressColumn(
-                        "Confidence",
+                        "🎯 Confidence",
                         help="Extraction confidence score",
                         min_value=0,
                         max_value=1,
+                    ),
+                    "Type": st.column_config.TextColumn(
+                        "📂 Type",
+                        help="Knowledge category"
+                    ),
+                    "Knowledge": st.column_config.TextColumn(
+                        "💡 Knowledge",
+                        help="Extracted knowledge item"
+                    ),
+                    "Description": st.column_config.TextColumn(
+                        "📝 Description",
+                        help="Detailed description"
+                    ),
+                    "Source": st.column_config.TextColumn(
+                        "📄 Source",
+                        help="Source document or file"
                     )
                 }
             )
             
-            # Export
-            csv = df.to_csv(index=False)
-            st.download_button(
-                "Download CSV",
-                csv,
-                f"knowledge_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                "text/csv"
-            )
-    
-    with col2:
-        st.header("Analytics")
-        
-        if not df.empty and 'Type' in df.columns and 'Confidence' in df.columns:
-            # Type distribution
-            type_counts = df['Type'].value_counts()
-            fig = px.pie(
-                values=type_counts.values,
-                names=type_counts.index,
-                title="Knowledge Distribution"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            # Analytics section
+            st.markdown("### 📈 Knowledge Analytics")
             
-            # Confidence distribution
-            fig2 = px.histogram(
-                df,
-                x='Confidence',
-                title="Confidence Distribution",
-                nbins=10
-            )
-            st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.info("Charts will appear after processing files")
-        
-            # Stats
-            st.subheader("Statistics")
-            st.metric("Total Items", len(df))
-            if not df.empty and 'Confidence' in df.columns:
-                st.metric("Avg Confidence", f"{df['Confidence'].mean():.2f}")
-            if not df.empty and 'Type' in df.columns:
-                st.metric("Types", df['Type'].nunique())
+            # Create two columns for analytics
+            analytics_col1, analytics_col2 = st.columns(2)
+            
+            with analytics_col1:
+                if 'Type' in df.columns:
+                    # Type distribution chart
+                    type_counts = df['Type'].value_counts()
+                    fig = px.pie(
+                        values=type_counts.values,
+                        names=type_counts.index,
+                        title="📊 Knowledge Type Distribution",
+                        color_discrete_sequence=px.colors.qualitative.Set3
+                    )
+                    fig.update_layout(
+                        showlegend=True,
+                        height=400,
+                        font=dict(size=12)
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            with analytics_col2:
+                if 'Confidence' in df.columns:
+                    # Confidence distribution
+                    fig2 = px.histogram(
+                        df,
+                        x='Confidence',
+                        title="🎯 Confidence Score Distribution",
+                        nbins=20,
+                        color_discrete_sequence=['#667eea']
+                    )
+                    fig2.update_layout(
+                        xaxis_title="Confidence Score",
+                        yaxis_title="Count",
+                        height=400,
+                        font=dict(size=12)
+                    )
+                    fig2.update_xaxis(tickformat='.0%')
+                    st.plotly_chart(fig2, use_container_width=True)
+            
+            # Additional insights
+            if 'Source' in df.columns and df['Source'].nunique() > 1:
+                st.markdown("### 📋 Source Analysis")
+                source_counts = df['Source'].value_counts().head(10)
+                fig3 = px.bar(
+                    x=source_counts.values,
+                    y=source_counts.index,
+                    orientation='h',
+                    title="📁 Top Knowledge Sources",
+                    color_discrete_sequence=['#764ba2']
+                )
+                fig3.update_layout(
+                    xaxis_title="Knowledge Items",
+                    yaxis_title="Source",
+                    height=400,
+                    font=dict(size=12)
+                )
+                st.plotly_chart(fig3, use_container_width=True)
 
 if __name__ == "__main__":
     main()

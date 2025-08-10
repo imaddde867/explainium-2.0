@@ -88,6 +88,8 @@ logs/
 *.log
 test_*.db
 *.sqlite
+backups/
+monitoring/
 
 # Docker
 .dockerignore
@@ -105,6 +107,8 @@ dist/
 # Temporary files
 *.tmp
 *.temp
+.temp/
+temp/
 
 # Large local model weights (do not commit)
 models/llm/Mistral-7B-Instruct-v0.2-GGUF/
@@ -114,4 +118,22 @@ models/embeddings/
 models/vision/
 # Individual large model artifacts
 models/**/*.gguf
+models/**/*.bin
+models/**/*.safetensors
+
+# Production specific
+*.pid
+*.sock
+nohup.out
+
+# Development databases
+dev_fallback.db
+
+# Jupyter notebooks (if any)
+.ipynb_checkpoints/
+*.ipynb
+
+# Documentation builds
+docs/_build/
+site/
 
