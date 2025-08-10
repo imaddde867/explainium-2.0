@@ -1,8 +1,13 @@
-# EXPLAINIUM
+# EXPLAINIUM - AI Knowledge Analyst
 
-A production-ready platform that turns documents, images, videos, and audio into actionable knowledge. Designed for non-technical users and robust enough for engineering teams.
+A production-ready platform that transforms any unstructured document into a structured, actionable, and synthesized knowledge base. Powered by a sophisticated 3-phase AI framework that moves beyond simple text extraction to provide deep, contextual understanding.
 
-— Clear impact: faster reporting, better process documentation, and quicker compliance reviews.
+**🧠 AI Knowledge Analyst Framework:**
+- **Phase 1:** Holistic Comprehension - Understands document purpose, audience, and structure
+- **Phase 2:** Thematic Abstraction - Categorizes information into actionable buckets  
+- **Phase 3:** Synthesis & Structured Output - Creates coherent, markdown-formatted knowledge reports
+
+— Clear impact: faster reporting, better process documentation, quicker compliance reviews, and actionable insights from any document type.
 
 ## Quick Start (First Time Setup)
 
@@ -35,8 +40,14 @@ Success: Your system is now running at:
 1. **Open** http://localhost:8501 in your browser
 2. **Upload** any file (PDF, image, video, audio)
 3. **Click** the processing button
-4. **Watch** AI extract knowledge automatically!
-5. **Explore** the results in the interactive table
+4. **Watch** AI Knowledge Analyst transform your document using the 3-phase framework!
+5. **Explore** the structured knowledge base with prioritized insights
+
+### Quick Demo
+```bash
+# Test the AI Knowledge Analyst with sample documents
+python demo_knowledge_analyst.py
+```
 
 ---
 
@@ -52,16 +63,50 @@ Success: Your system is now running at:
 - Computer Vision: OCR and image analysis
 - Speech Processing: Whisper AI for audio transcription
 
-### Knowledge Types Extracted
-- Concepts: Key ideas and terminology
-- Processes: Workflows and procedures
-- Systems: Technical components and tools
-- Requirements: Rules and compliance needs
-- People: Roles and responsibilities
-- Risks: Potential issues and hazards
+### AI Knowledge Analyst Categories
+**Structured Thematic Analysis:**
+- **Processes & Workflows:** Step-by-step instructions and procedures with actionable insights
+- **Policies, Rules & Requirements:** Mandatory guidelines and compliance standards with priority levels
+- **Key Data & Metrics:** Quantifiable data points (numbers, dates, measurements) with context
+- **Roles & Responsibilities:** Clear assignment of duties and accountability
+- **Definitions:** Explanations of key terms and concepts as defined in documents
+- **Risks & Corrective Actions:** Potential issues with prescribed solutions and mitigation strategies
+
+**Enhanced Output Features:**
+- Priority-based categorization (Critical/Important/Informational)
+- Synthesized summaries that combine related information
+- Actionable insights and key takeaways
+- Structured Markdown reports for easy consumption
+- Visual analytics and relationship mapping
 
 ### Apple Silicon Optimization
 - Optimized for Apple Silicon; CPU-only paths are supported.
+
+## AI Knowledge Analyst Framework
+
+### 3-Phase Analysis Process
+
+**Phase 1: Holistic Comprehension**
+- Analyzes entire document to understand primary purpose
+- Identifies intended audience and document type (manual, contract, report, policy, etc.)
+- Evaluates document structure, complexity level, and domain
+
+**Phase 2: Thematic Abstraction**
+- Categorizes information into 6 key buckets:
+  - Processes & Workflows
+  - Policies, Rules & Requirements  
+  - Key Data & Metrics
+  - Roles & Responsibilities
+  - Definitions
+  - Risks & Corrective Actions
+- Assigns priority levels (Critical/Important/Informational)
+- Identifies relationships between categories
+
+**Phase 3: Synthesis & Structured Output**
+- Synthesizes related information from different document sections
+- Generates actionable insights and key takeaways
+- Creates structured Markdown reports with clear formatting
+- Focuses on actionable information over isolated text snippets
 
 ## How it works (at a glance)
 ```mermaid
@@ -69,14 +114,13 @@ flowchart LR
   A[User Uploads File] --> B[Streamlit Frontend]
   B --> C[FastAPI Backend]
   C --> D[(Uploads Storage)]
-  C --> E{Queue}
-  E --> F[Celery Worker]
-  F --> G[DocumentProcessor]
-  G --> H[Whisper Transcription]
-  G --> I[Tesseract OCR on Video Frames]
-  H --> J[Knowledge Items]
-  I --> J
-  J --> K[(Database)]
+  C --> E{AI Knowledge Analyst}
+  E --> F[Phase 1: Holistic Comprehension]
+  F --> G[Phase 2: Thematic Abstraction]
+  G --> H[Phase 3: Synthesis & Output]
+  H --> I[Structured Knowledge Base]
+  I --> J[(Database)]
+  J --> K[Enhanced Frontend Display]
   K --> B
 ```
 
@@ -169,21 +213,42 @@ mkdir -p uploaded_files logs models
 
 ## 📚 Usage Examples
 
-### **Basic Document Processing**
+### **AI Knowledge Analyst Processing**
+```python
+from src.ai.knowledge_analyst import AIKnowledgeAnalyst
+from src.core.config import AIConfig
+
+# Initialize AI Knowledge Analyst
+config = AIConfig()
+analyst = AIKnowledgeAnalyst(config)
+await analyst.initialize()
+
+# Analyze any document with 3-phase framework
+content = "Customer onboarding process documentation..."
+result = await analyst.analyze_document(content, {"source": "onboarding_doc"})
+
+# Access structured results
+print(f"Document Type: {result.document_context.document_type.value}")
+print(f"Primary Purpose: {result.document_context.primary_purpose}")
+print(f"Actionable Insights: {result.actionable_insights}")
+print(f"Structured Report: {result.structured_markdown}")
+```
+
+### **Legacy Document Processing**
 ```python
 from src.processors.processor import DocumentProcessor
 
 # Initialize processor
 processor = DocumentProcessor()
 
-# Process a document
+# Process a document (automatically uses AI Knowledge Analyst)
 document = {
     "content": "Customer onboarding process documentation...",
-    "type": "pdf",
+    "type": "pdf", 
     "metadata": {"department": "operations"}
 }
 
-# Extract deep knowledge
+# Extract deep knowledge (now uses 3-phase framework)
 knowledge = await processor.process_document(document)
 ```
 

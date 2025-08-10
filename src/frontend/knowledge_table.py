@@ -15,6 +15,17 @@ import io
 import sys
 import os
 
+# Import the new structured knowledge display
+try:
+    from frontend.structured_knowledge_display import render_structured_knowledge_interface
+    STRUCTURED_DISPLAY_AVAILABLE = True
+except ImportError:
+    try:
+        from src.frontend.structured_knowledge_display import render_structured_knowledge_interface
+        STRUCTURED_DISPLAY_AVAILABLE = True
+    except ImportError:
+        STRUCTURED_DISPLAY_AVAILABLE = False
+
 # Simple approach: just check if we can import the basic AI components
 AI_AVAILABLE = False
 import_error_msg = ""
@@ -136,7 +147,7 @@ def process_document(uploaded_file, use_ai=True):
         return []
 
 def process_with_ai_engine(uploaded_file, file_name, file_type):
-    """Process file with AI engine if available"""
+    """Process file with AI engine if available - now returns structured knowledge format"""
     try:
         # Extract content based on file type
         content = ""
@@ -156,14 +167,70 @@ def process_with_ai_engine(uploaded_file, file_name, file_type):
         else:
             content = f"File: {file_name}"
         
-        # Use intelligent extraction
+        # Try to use the real AI Knowledge Analyst if available
         if content and len(content.strip()) > 50:
-            return extract_intelligent_knowledge(content, file_name)
+            try:
+                # Try to use the actual AI Knowledge Analyst
+                structured_knowledge = process_with_real_ai_analyst(content, file_name, file_type)
+                if structured_knowledge:
+                    # Store structured knowledge in session state for the new display
+                    st.session_state['current_structured_knowledge'] = structured_knowledge
+                    return None  # Don't return legacy format
+                else:
+                    # Fallback to intelligent extraction
+                    return extract_intelligent_knowledge(content, file_name)
+            except Exception as e:
+                print(f"AI Knowledge Analyst failed, using fallback: {e}")
+                return extract_intelligent_knowledge(content, file_name)
         else:
             return None
             
     except Exception as e:
         print(f"AI engine processing failed: {e}")
+        return None
+
+
+def process_with_real_ai_analyst(content: str, file_name: str, file_type: str) -> Optional[Dict[str, Any]]:
+    """Try to use the real AI Knowledge Analyst for processing"""
+    try:
+        # Import the actual processor
+        import asyncio
+        import sys
+        import os
+        
+        # Add src to path if not already there
+        src_path = os.path.join(os.getcwd(), 'src')
+        if src_path not in sys.path:
+            sys.path.insert(0, src_path)
+        
+        from src.processors.processor import DocumentProcessor
+        
+        # Create a temporary file for processing
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
+            tmp_file.write(content)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            # Initialize processor
+            processor = DocumentProcessor()
+            
+            # Process document
+            result = processor.process_document(tmp_file_path, document_id=999)
+            
+            # Check if we got structured knowledge
+            if (result.get('knowledge', {}).get('analysis_type') == 'structured_knowledge_analyst' or
+                result.get('knowledge', {}).get('analysis_method') == 'ai_knowledge_analyst_3_phase'):
+                return result['knowledge']
+            else:
+                return None
+                
+        finally:
+            # Clean up temp file
+            os.unlink(tmp_file_path)
+            
+    except Exception as e:
+        print(f"Real AI analyst processing failed: {e}")
         return None
 
 def extract_intelligent_knowledge(text, source_name):
@@ -853,11 +920,18 @@ def main():
             if st.button(button_text, type="primary"):
                 with st.spinner(spinner_text):
                     new_knowledge = process_document(uploaded_file, AI_AVAILABLE)
-                    if new_knowledge:
-                        # Add new knowledge to existing data
+                    
+                    # Check if we have structured knowledge from the new AI Knowledge Analyst
+                    if 'current_structured_knowledge' in st.session_state:
+                        st.success("✨ Document analyzed with AI Knowledge Analyst (3-phase framework)")
+                        st.rerun()
+                    elif new_knowledge:
+                        # Add new knowledge to existing data (legacy format)
                         st.session_state.knowledge_data.extend(new_knowledge)
                         st.success(f"Extracted {len(new_knowledge)} knowledge items.")
                         st.rerun()
+                    else:
+                        st.error("Failed to extract knowledge from the document.")
         
         # Filters
         st.subheader("Filters")
@@ -892,14 +966,33 @@ def main():
                 st.success("Demo data loaded.")
                 st.rerun()
     
-    # Main content
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.header("Knowledge Table")
+    # Main content - Check for structured knowledge first
+    if 'current_structured_knowledge' in st.session_state and STRUCTURED_DISPLAY_AVAILABLE:
+        # Display the new structured knowledge interface
+        render_structured_knowledge_interface(st.session_state['current_structured_knowledge'])
         
-        # Get and filter data
-        df = pd.DataFrame(st.session_state.knowledge_data)
+        # Add option to clear and go back to legacy view
+        st.divider()
+        col_clear1, col_clear2 = st.columns(2)
+        with col_clear1:
+            if st.button("🔄 Clear Analysis & Upload New Document"):
+                if 'current_structured_knowledge' in st.session_state:
+                    del st.session_state['current_structured_knowledge']
+                st.rerun()
+        with col_clear2:
+            if st.button("📊 Switch to Legacy Table View"):
+                if 'current_structured_knowledge' in st.session_state:
+                    del st.session_state['current_structured_knowledge']
+                st.rerun()
+    else:
+        # Legacy knowledge table display
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.header("Knowledge Table")
+            
+            # Get and filter data
+            df = pd.DataFrame(st.session_state.knowledge_data)
         
         # Apply filters only if DataFrame is not empty
         if not df.empty:
@@ -977,13 +1070,13 @@ def main():
         else:
             st.info("Charts will appear after processing files")
         
-        # Stats
-        st.subheader("Statistics")
-        st.metric("Total Items", len(df))
-        if not df.empty and 'Confidence' in df.columns:
-            st.metric("Avg Confidence", f"{df['Confidence'].mean():.2f}")
-        if not df.empty and 'Type' in df.columns:
-            st.metric("Types", df['Type'].nunique())
+            # Stats
+            st.subheader("Statistics")
+            st.metric("Total Items", len(df))
+            if not df.empty and 'Confidence' in df.columns:
+                st.metric("Avg Confidence", f"{df['Confidence'].mean():.2f}")
+            if not df.empty and 'Type' in df.columns:
+                st.metric("Types", df['Type'].nunique())
 
 if __name__ == "__main__":
     main()
