@@ -19,7 +19,7 @@ from celery.signals import task_prerun, task_postrun, task_failure
 from src.core.config import config
 from src.database.database import get_db_session, db_transaction
 from src.database import crud, models
-from src.processors.processor import DocumentProcessor
+from src.processors.unified_document_processor import UnifiedDocumentProcessor
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -71,8 +71,8 @@ celery_app.conf.update(
     },
 )
 
-# Initialize document processor
-document_processor = DocumentProcessor()
+# Initialize unified document processor
+document_processor = UnifiedDocumentProcessor()
 
 
 # Celery signal handlers
@@ -134,7 +134,7 @@ def task_failure_handler(sender=None, task_id=None, exception=None, traceback=No
 
 # Main document processing task
 @celery_app.task(bind=True, name='process_document_task')
-def process_document_task(self, file_path: str, document_id: int) -> Dict[str, Any]:
+async def process_document_task(self, file_path: str, document_id: int) -> Dict[str, Any]:
     """
     Process a document and extract knowledge
     
@@ -174,7 +174,7 @@ def process_document_task(self, file_path: str, document_id: int) -> Dict[str, A
         
         # Process the document
         logger.info(f"Starting document processing for {file_path}")
-        processing_result = document_processor.process_document(file_path, document_id)
+        processing_result = await document_processor.process_document(file_path, document_id)
         
         # Update progress: Document processed
         self.update_state(

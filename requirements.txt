@@ -1,35 +1,45 @@
-torch
-torchvision
-torchaudio
+# Core dependencies
+torch>=2.0.0
+transformers>=4.30.0
+spacy>=3.6.0
+numpy>=1.24.0
+pandas>=2.0.0
+Pillow>=10.0.0
 
-transformers>=4.40.0
-sentence-transformers>=2.7.0
-accelerate==0.25.0
-bitsandbytes; platform_system == 'Linux'
-datasets
-soundfile
-librosa
-numpy
-PyMuPDF
-PyPDF2
-python-docx
-pytesseract
-opencv-python
-Pillow
-pandas
-python-pptx
-ffmpeg-python
-openai-whisper
-spacy
-webrtcvad
-scikit-learn
-fastapi
-uvicorn[standard]
-sqlalchemy
-python-multipart
-aiofiles
-celery[redis]
-streamlit
-alembic
-psycopg2-binary
-diskcache
+# Document processing
+PyPDF2>=3.0.0
+PyMuPDF>=1.23.0
+python-docx>=0.8.11
+python-pptx>=0.6.21
+
+# OCR and Vision
+pytesseract>=0.3.10
+opencv-python>=4.8.0
+easyocr>=1.7.0
+
+# Audio processing
+openai-whisper>=20231117
+
+# Web framework
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# Task queue
+celery>=5.3.0
+redis>=4.6.0
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.11.0
+
+# Utilities
+python-multipart>=0.0.6
+python-jose>=3.3.0
+passlib>=1.7.4
+bcrypt>=4.0.1
+
+# Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0

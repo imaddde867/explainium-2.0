@@ -1,444 +1,193 @@
-# 🧠 EXPLAINIUM - Advanced AI-Powered Knowledge Extraction System
+# EXPLAINIUM - Intelligent Knowledge Extraction System
 
-EXPLAINIUM is a sophisticated, AI-powered knowledge processing platform that extracts deep, meaningful insights from documents, images, videos, and audio files using advanced local AI models.
+A sophisticated document processing and knowledge extraction system that produces structured, categorized knowledge output in a specific format with emojis and proper categorization.
 
-## ⚡ Quick Start (First Time Setup)
+## Features
 
-### **🎯 For Absolute Beginners**
-```bash
-# 1. Open Terminal (Applications > Utilities > Terminal)
+- **Unified Document Processing**: Handles all document types (PDF, DOC, DOCX, images, videos, audio, spreadsheets, presentations)
+- **Intelligent Knowledge Extraction**: Uses advanced AI to extract structured knowledge
+- **Categorized Output**: Produces knowledge in organized categories (💡 Concepts, ⚙️ Processes, 🖥️ Systems)
+- **Multi-format Support**: Processes text, images, audio, and video documents
+- **High-Quality OCR**: Advanced image processing and text extraction
+- **Async Processing**: Built with async/await for high performance
 
-# 2. Clone the repository
-git clone <repository-url>
-cd explainium-2.0
+## Expected Output Format
 
-# 3. Run automated setup (takes 5-10 minutes)
-chmod +x setup.sh && ./setup.sh
-
-# 4. Start the application
-./start.sh
-```
-
-### **🚀 Launch Application**
-```bash
-./start.sh
-```
-
-**🎉 Success!** Your system is now running at:
-- 🎨 **Main Interface**: http://localhost:8501 ← **Click here to start!**
-- 🔧 **API Backend**: http://localhost:8000
-- 📚 **API Docs**: http://localhost:8000/docs
-
-### **📱 First Steps**
-1. **Open** http://localhost:8501 in your browser
-2. **Upload** any file (PDF, image, video, audio)
-3. **Click** the processing button
-4. **Watch** AI extract knowledge automatically!
-5. **Explore** the results in the interactive table
-
----
-
-## 🚀 Key Features
-
-### **Multi-Modal AI Processing**
-- **📄 Documents**: PDF, TXT, DOCX with deep text analysis
-- **🖼️ Images**: JPG, PNG, GIF with OCR and visual analysis
-- **🎥 Videos**: MP4, AVI, MOV with scene detection
-- **🎵 Audio**: MP3, WAV, FLAC with speech-to-text transcription
-
-### **Advanced AI Models**
-- **🧠 Primary LLM**: Mistral-7B-Instruct-v0.2 (4-bit quantized)
-- **🔍 Embeddings**: BAAI/bge-small-en-v1.5 for semantic search
-- **👁️ Computer Vision**: OCR and image analysis
-- **🎤 Speech Processing**: Whisper AI for audio transcription
-
-### **Knowledge Types Extracted**
-- **💡 Concepts**: Key ideas and terminology
-- **⚙️ Processes**: Workflows and procedures
-- **🖥️ Systems**: Technical components and tools
-- **📋 Requirements**: Rules and compliance needs
-- **👥 People**: Roles and responsibilities
-- **⚠️ Risks**: Potential issues and hazards
-
-### **Apple Silicon Optimization**
-- **🚀 Metal Acceleration**: Leverages Apple M4 neural engine
-- **💾 Memory Management**: 4-bit quantization for 16GB+ RAM
-- **⚡ Performance**: Real-time processing with hardware optimization
-
-## 🏗️ System Architecture
+The system produces knowledge in this structured format:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                 🧠 EXPLAINIUM System                       │
-├─────────────────────────────────────────────────────────────┤
-│  🎨 Frontend (Streamlit)                                   │
-│  ├── Multi-Modal File Upload                              │
-│  ├── Real-Time Knowledge Table                            │
-│  ├── Interactive Analytics & Charts                       │
-│  └── Export & Filtering                                   │
-├─────────────────────────────────────────────────────────────┤
-│  🔧 Backend API (FastAPI)                                  │
-│  ├── Document Processing Pipeline                         │
-│  ├── Multi-Modal Content Handler                          │
-│  └── Knowledge Storage & Retrieval                        │
-├─────────────────────────────────────────────────────────────┤
-│  🤖 AI Processing Layer                                    │
-│  ├── Mistral-7B LLM (Text Understanding)                  │
-│  ├── BGE Embeddings (Semantic Search)                     │
-│  ├── OCR Engine (Image Text Extraction)                   │
-│  └── Whisper AI (Audio Transcription)                     │
-├─────────────────────────────────────────────────────────────┤
-│  💾 Data Layer                                             │
-│  ├── SQLite Database (Development)                        │
-│  ├── Session State (Real-time)                            │
-│  └── File Storage (Uploads)                               │
-└─────────────────────────────────────────────────────────────┘
+💡 Concepts
+Integrated Pest Management (IPM): A system integrating chemical, physical, cultural, and biological controls...
+
+⚙️ Processes
+Pest Management Framework: A three-step approach to pest management in food facilities...
+
+🖥️ Systems
+Pest Monitoring Tools: Various tools and methods for monitoring pest activity...
 ```
 
-## 📋 System Requirements
+## Installation
 
-### **Hardware (Recommended)**
-- **💻 System**: Apple M4 Mac (or compatible)
-- **🧠 RAM**: 16GB+ (32GB recommended)
-- **� Storrage**: 10GB+ free space
-- **🌐 Network**: Internet (for initial setup)
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd explainium
+   ```
 
-### **Software**
-- **🍎 OS**: macOS 14.0+ (Apple Silicon optimized)
-- **🐍 Python**: 3.9+ (automatically installed)
-- **⚡ Metal**: Apple GPU acceleration (automatic)
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## 🛠️ Installation & Setup
+3. **Install system dependencies** (for OCR and audio processing):
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install tesseract-ocr ffmpeg
+   
+   # macOS
+   brew install tesseract ffmpeg
+   
+   # Windows
+   # Download and install Tesseract and FFmpeg manually
+   ```
 
-### **Method 1: Automated Setup (Recommended)**
-```bash
-# Clone repository
-git clone <repository-url>
-cd explainium-2.0
+4. **Download spaCy model**:
+   ```bash
+   python -m spacy download en_core_web_sm
+   ```
 
-# One-command setup (handles everything)
-chmod +x setup.sh && ./setup.sh
+## Usage
 
-# Start application
-./start.sh
-```
+### Basic Usage
 
-### **Method 2: Manual Setup**
-```bash
-# 1. Clone and navigate
-git clone <repository-url>
-cd explainium-2.0
-
-# 2. Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Create directories
-mkdir -p uploaded_files logs models
-
-# 5. Start services
-./start.sh
-```
-
-### **🚀 Quick Commands**
-```bash
-./start.sh    # Start both frontend and backend
-./stop.sh     # Stop all services
-./setup.sh    # Run full setup (first time only)
-```
-
-## 🎯 Usage Guide
-
-### **1. Start the System**
-```bash
-./start.sh
-```
-- 🎨 **Frontend**: http://localhost:8501
-- 🔧 **Backend**: http://localhost:8000
-
-### **2. Upload Files**
-- **📄 Documents**: PDF, TXT, DOCX
-- **🖼️ Images**: JPG, PNG, GIF, BMP, TIFF  
-- **🎥 Videos**: MP4, AVI, MOV, MKV
-- **🎵 Audio**: MP3, WAV, FLAC
-
-### **3. Extract Knowledge**
-1. Click "Choose a file" in the sidebar
-2. Select your file (any supported format)
-3. Click the processing button (🔍/🎬/🎤/🚀)
-4. Watch AI extract knowledge in real-time!
-
-### **4. Analyze Results**
-- **📊 Table**: View extracted knowledge items
-- **📈 Charts**: See distribution and analytics
-- **🔍 Filter**: By type, confidence, search terms
-- **📥 Export**: Download results as CSV
-
-### **5. Stop the System**
-```bash
-./stop.sh
-```
-
-## 📚 Usage Examples
-
-### **Basic Document Processing**
 ```python
-from src.processors.processor import DocumentProcessor
+import asyncio
+from src.processors.unified_document_processor import UnifiedDocumentProcessor
 
-# Initialize processor
-processor = DocumentProcessor()
+async def process_document():
+    processor = UnifiedDocumentProcessor()
+    result = await processor.process_document("path/to/document.pdf", 1)
+    
+    # Access extracted knowledge
+    knowledge = result['knowledge']
+    print("Extracted concepts:", knowledge.get('concepts', []))
+    print("Extracted processes:", knowledge.get('processes', []))
 
-# Process a document
-document = {
-    "content": "Customer onboarding process documentation...",
-    "type": "pdf",
-    "metadata": {"department": "operations"}
-}
-
-# Extract deep knowledge
-knowledge = await processor.process_document(document)
+# Run
+asyncio.run(process_document())
 ```
 
-### **Contextual Processing**
+### Test the System
+
+Run the test script to see the system in action:
+
+```bash
+python test_knowledge_extraction.py
+```
+
+This will process the `documents_samples/AG1157.pdf` file and display the extracted knowledge.
+
+## Supported Document Types
+
+| Type | Extensions | Processing Method |
+|------|------------|-------------------|
+| **Text** | `.pdf`, `.doc`, `.docx`, `.txt`, `.rtf` | Text extraction + AI analysis |
+| **Images** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff` | OCR + AI analysis |
+| **Spreadsheets** | `.xls`, `.xlsx`, `.csv` | Data extraction + AI analysis |
+| **Presentations** | `.ppt`, `.pptx` | Text extraction + AI analysis |
+| **Audio** | `.mp3`, `.wav`, `.flac`, `.aac` | Transcription + AI analysis |
+| **Video** | `.mp4`, `.avi`, `.mov`, `.mkv` | Audio extraction + transcription + AI analysis |
+
+## Architecture
+
+- **`UnifiedDocumentProcessor`**: Main processor that handles all document types
+- **`IntelligentKnowledgeExtractor`**: AI-powered knowledge extraction engine
+- **`celery_worker.py`**: Background task processing for large documents
+- **`exceptions.py`**: Custom exception handling
+- **`logging_config.py`**: Centralized logging configuration
+
+## Configuration
+
+Set environment variables for customization:
+
+```bash
+export LOG_LEVEL=INFO
+export CREATE_LOGS_DIR=true
+```
+
+## API Integration
+
+The system integrates with FastAPI and Celery for web-based document processing:
+
 ```python
-# Process with company context
-company_context = {
-    "industry": "healthcare",
-    "size": "enterprise",
-    "compliance": ["HIPAA", "SOC2"]
-}
+from fastapi import FastAPI, UploadFile
+from src.processors.unified_document_processor import UnifiedDocumentProcessor
 
-enhanced_knowledge = await processor.process_document_with_context(
-    document, company_context
-)
+app = FastAPI()
+processor = UnifiedDocumentProcessor()
+
+@app.post("/process-document/")
+async def process_document(file: UploadFile):
+    # Save uploaded file
+    file_path = f"uploads/{file.filename}"
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+    
+    # Process document
+    result = await processor.process_document(file_path, 1)
+    return result
 ```
 
-### **Tacit Knowledge Extraction**
-```python
-# Extract patterns across multiple documents
-documents = [doc1, doc2, doc3, ...]
-tacit_knowledge = await processor.extract_tacit_knowledge(documents)
+## Performance
 
-# Results include:
-# - Implicit workflows
-# - Organizational structures  
-# - Policy changes over time
-# - Communication networks
-```
+- **Text documents**: ~1-5 seconds per page
+- **Images**: ~2-10 seconds depending on complexity
+- **Audio/Video**: ~1-3x real-time duration
+- **Large documents**: Processed asynchronously via Celery
 
-### **Knowledge Graph Queries**
-```python
-from src.ai.advanced_knowledge_engine import AdvancedKnowledgeEngine
+## Troubleshooting
 
-engine = AdvancedKnowledgeEngine()
+### Common Issues
 
-# Find related concepts
-related = engine.knowledge_graph.find_related_nodes("customer_onboarding")
+1. **OCR not working**: Ensure Tesseract is installed and in PATH
+2. **Audio processing fails**: Install FFmpeg and ensure Whisper is available
+3. **Memory issues**: Large documents may require more RAM, use Celery for background processing
 
-# Search by type
-processes = engine.knowledge_graph.find_nodes_by_type("process")
+### Logs
 
-# Get workflow paths
-workflow = engine.knowledge_graph.find_workflow_path("start", "end")
-```
-
-## 📊 Frontend Features
-
-### **Knowledge Table Dashboard**
-- **Large Data Table**: Display all extracted knowledge with search and filtering
-- **Advanced Filters**: By type, confidence, date range, and search terms
-- **Visual Analytics**: Charts showing knowledge distribution and trends
-- **Interactive Graph**: Network visualization of knowledge relationships
-- **Export Options**: CSV, JSON, Markdown, Cytoscape formats
-
-### **Real-time Updates**
-- Live updates as new knowledge is extracted
-- Confidence scoring and validation
-- Performance metrics and monitoring
-- Memory usage tracking
-
-## 🔍 Model Management
-
-### **Automatic Setup**
+Check logs for detailed error information:
 ```bash
-# Detect hardware and setup optimal models
-python scripts/model_manager.py --action setup
-
-# List installed models
-python scripts/model_manager.py --action list
-
-# Validate model integrity
-python scripts/model_manager.py --action validate
-
-# Clean up models
-python scripts/model_manager.py --action cleanup
+tail -f logs/explainium.log
 ```
 
-### **Manual Model Management**
+## Development
+
+### Running Tests
+
 ```bash
-# (Optional) Explicit setup (single unified profile)
-python scripts/model_manager.py --action setup --hardware-profile m4_16gb
-
-# Clean specific model type
-python scripts/model_manager.py --action cleanup --model-type llm
+pytest tests/ -v
 ```
 
-## 🔧 Troubleshooting
+### Code Formatting
 
-### **Common Issues & Solutions**
-
-#### **🚫 "Command not found" errors**
 ```bash
-# Make scripts executable
-chmod +x setup.sh start.sh stop.sh
+black src/
+flake8 src/
 ```
 
-#### **🐍 Python/pip issues**
-```bash
-# Ensure Python 3.9+ is installed
-python3 --version
+## License
 
-# Reinstall dependencies
-rm -rf venv
-./setup.sh
-```
+[Your License Here]
 
-#### **🧠 AI models not loading**
-```bash
-# Clear model cache and restart
-rm -rf models/
-./stop.sh && ./start.sh
-```
+## Contributing
 
-#### **🔌 Port already in use**
-```bash
-# Kill existing processes
-./stop.sh
-# Or manually kill processes
-pkill -f streamlit
-pkill -f uvicorn
-```
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
-#### **💾 Low memory issues**
-- Close other applications
-- Restart your Mac
-- Ensure 16GB+ RAM available
+## Support
 
-#### **🌐 Can't access web interface**
-- Check if services are running: `ps aux | grep streamlit`
-- Try different browser or incognito mode
-- Restart services: `./stop.sh && ./start.sh`
-
-### **📊 System Status Check**
-```bash
-# Check if services are running
-ps aux | grep -E "(streamlit|uvicorn)"
-
-# Check ports
-lsof -i :8501  # Frontend
-lsof -i :8000  # Backend
-
-# Check logs
-tail -f logs/*.log
-```
-
-## 📈 Performance Metrics
-
-### **Memory Usage**
-- **Model Loading**: <4GB for primary LLM
-- **Processing**: <8GB peak during extraction
-- **Cache**: <2GB for disk-based caching
-- **Total**: <16GB for 16GB Mac, <32GB for 32GB Mac
-
-### **Processing Speed**
-- **Document Processing**: 100-500 words/second
-- **Knowledge Extraction**: 2-5 seconds per document
-- **Graph Building**: Real-time updates
-- **Search Queries**: <100ms response time
-
-### **Scalability**
-- **Document Size**: Up to 100MB per document
-- **Batch Processing**: Configurable batch sizes
-- **Concurrent Processing**: Async processing support
-- **Memory Optimization**: Automatic model swapping
-
-## 🚀 Deployment
-
-### **Local Development**
-```bash
-# Development mode with hot reload
-streamlit run src/frontend/knowledge_table.py --server.runOnSave true
-
-# Run with debug logging
-LOG_LEVEL=DEBUG python -m src.processors.processor
-```
-
-### **Production Deployment**
-```bash
-# Build optimized models (single profile)
-python scripts/model_manager.py --action setup --hardware-profile m4_16gb
-
-# Run with production settings
-export ENVIRONMENT=production
-streamlit run src/frontend/knowledge_table.py --server.port 8501
-```
-
-### **Docker Support**
-```dockerfile
-# Dockerfile example
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-EXPOSE 8501
-CMD ["streamlit", "run", "src/frontend/knowledge_table.py"]
-```
-
-## 🔧 Troubleshooting
-
-### **Common Issues**
-
-#### **Memory Errors**
-```bash
-# Check available RAM
-python -c "import psutil; print(psutil.virtual_memory())"
-
-# Reduce batch size in config
-batch_size: 2  # Instead of 4
-```
-
-#### **Model Loading Failures**
-```bash
-# Validate models
-python scripts/model_manager.py --action validate
-
-# Re-download corrupted models
-python scripts/model_manager.py --action cleanup --model-type llm
-python scripts/model_manager.py --action setup
-```
-
-#### **Performance Issues**
-```bash
-# Check Metal acceleration
-python -c "import torch; print(torch.backends.mps.is_available())"
-
-# Monitor performance
-python -m src.core.optimization --monitor
-```
-
-### **Logging and Debugging**
-```python
-# Enable debug logging
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-# Check system resources
-from src.core.optimization import PerformanceMonitor
-monitor = PerformanceMonitor()
-print(monitor.get_system_status())
-```
+For issues and questions, please open an issue on GitHub or contact the development team.
 
