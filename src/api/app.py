@@ -96,6 +96,24 @@ class ProcessSearchRequest(BaseModel):
     max_results: int = 50
 
 
+class IntelligentCategorizationRequest(BaseModel):
+    document_id: int
+    force_reprocess: bool = False
+
+
+class BulkCategorizationRequest(BaseModel):
+    document_ids: List[int]
+    force_reprocess: bool = False
+
+
+class IntelligentKnowledgeSearchRequest(BaseModel):
+    query: str
+    entity_type: Optional[str] = None
+    priority_level: Optional[str] = None
+    confidence_threshold: float = 0.7
+    max_results: int = 50
+
+
 class HealthResponse(BaseModel):
     status: str
     timestamp: datetime
@@ -265,10 +283,345 @@ async def get_task_status_endpoint(task_id: str):
     """Get processing task status"""
     try:
         status = get_task_status(task_id)
-        return status
+        return {"task_id": task_id, "status": status}
     except Exception as e:
         logger.error(f"Error getting task status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get task status")
+
+
+@app.post("/intelligent-categorization")
+async def categorize_document_intelligently(
+    request: IntelligentCategorizationRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Apply intelligent knowledge categorization to a specific document.
+    
+    This endpoint implements the three-phase intelligent knowledge categorization framework:
+    1. Document Intelligence Assessment
+    2. Intelligent Knowledge Categorization  
+    3. Database-Optimized Output Generation
+    """
+    try:
+        # Check if document exists
+        document = crud.get_document(db, request.document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Check if intelligent categorization already exists
+        if not request.force_reprocess:
+            existing_intelligence = crud.get_document_intelligence(db, request.document_id)
+            if existing_intelligence:
+                return {
+                    "message": "Document already has intelligent categorization",
+                    "document_id": request.document_id,
+                    "existing_intelligence_id": existing_intelligence.id
+                }
+        
+        # Prepare document for categorization
+        doc_for_categorization = {
+            'id': document.id,
+            'content': document.content,
+            'metadata': {
+                'filename': document.filename,
+                'file_type': document.file_type,
+                'uploaded_at': document.uploaded_at.isoformat() if document.uploaded_at else None,
+                'file_size': document.file_size
+            },
+            'type': document.file_type,
+            'filename': document.filename,
+            'uploaded_at': document.uploaded_at
+        }
+        
+        # Apply intelligent categorization
+        categorization_result = await document_processor.categorize_document_intelligently(doc_for_categorization)
+        
+        # Store results in database
+        try:
+            # Create document intelligence record
+            doc_intelligence = crud.create_document_intelligence(
+                db=db,
+                document_id=request.document_id,
+                document_type=categorization_result['document_intelligence']['document_type'],
+                target_audience=categorization_result['document_intelligence']['target_audience'],
+                information_architecture=categorization_result['document_intelligence']['information_architecture'],
+                priority_contexts=categorization_result['document_intelligence']['priority_contexts'],
+                confidence_score=categorization_result['document_intelligence']['confidence_score'],
+                analysis_method=categorization_result['document_intelligence']['analysis_method']
+            )
+            
+            # Prepare entities for bulk creation
+            entities_data = []
+            for entity in categorization_result['intelligent_entities']:
+                entity_data = {
+                    'document_id': request.document_id,
+                    'entity_type': entity['entity_type'],
+                    'key_identifier': entity['key_identifier'],
+                    'core_content': entity['core_content'],
+                    'context_tags': entity['context_tags'],
+                    'priority_level': entity['priority_level'],
+                    'confidence': entity['confidence'],
+                    'summary': entity['summary'],
+                    'source_text': entity['source_text'],
+                    'source_page': entity['source_page'],
+                    'source_section': entity['source_section'],
+                    'extraction_method': entity['extraction_method']
+                }
+                entities_data.append(entity_data)
+            
+            # Bulk create intelligent knowledge entities
+            created_entities = crud.bulk_create_intelligent_knowledge_entities(db, entities_data)
+            
+            return {
+                "message": "Intelligent categorization completed successfully",
+                "document_id": request.document_id,
+                "document_intelligence_id": doc_intelligence.id,
+                "entities_created": len(created_entities),
+                "quality_metrics": categorization_result['quality_metrics'],
+                "processing_timestamp": categorization_result['processing_timestamp']
+            }
+            
+        except Exception as db_error:
+            logger.error(f"Database error during intelligent categorization: {db_error}")
+            raise HTTPException(status_code=500, detail="Failed to store categorization results")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Intelligent categorization failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Intelligent categorization failed: {str(e)}")
+
+
+@app.post("/intelligent-categorization/bulk")
+async def bulk_categorize_documents(
+    request: BulkCategorizationRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Apply intelligent knowledge categorization to multiple documents.
+    
+    This endpoint processes multiple documents in parallel for efficiency.
+    """
+    try:
+        # Validate all documents exist
+        documents = []
+        for doc_id in request.document_ids:
+            doc = crud.get_document(db, doc_id)
+            if not doc:
+                raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+            documents.append(doc)
+        
+        # Prepare documents for categorization
+        docs_for_categorization = []
+        for doc in documents:
+            doc_data = {
+                'id': doc.id,
+                'content': doc.content,
+                'metadata': {
+                    'filename': doc.filename,
+                    'file_type': doc.file_type,
+                    'uploaded_at': doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+                    'file_size': doc.file_size
+                },
+                'type': doc.file_type,
+                'filename': doc.filename,
+                'uploaded_at': doc.uploaded_at
+            }
+            docs_for_categorization.append(doc_data)
+        
+        # Apply bulk categorization
+        results = await document_processor.bulk_categorize_documents(docs_for_categorization)
+        
+        # Store successful results in database
+        successful_categorizations = []
+        failed_categorizations = []
+        
+        for i, result in enumerate(results):
+            if 'error' in result:
+                failed_categorizations.append({
+                    'document_id': request.document_ids[i],
+                    'error': result['error']
+                })
+            else:
+                try:
+                    # Create document intelligence record
+                    doc_intelligence = crud.create_document_intelligence(
+                        db=db,
+                        document_id=result['document_id'],
+                        document_type=result['document_intelligence']['document_type'],
+                        target_audience=result['document_intelligence']['target_audience'],
+                        information_architecture=result['document_intelligence']['information_architecture'],
+                        priority_contexts=result['document_intelligence']['priority_contexts'],
+                        confidence_score=result['document_intelligence']['confidence_score'],
+                        analysis_method=result['document_intelligence']['analysis_method']
+                    )
+                    
+                    # Prepare entities for bulk creation
+                    entities_data = []
+                    for entity in result['intelligent_entities']:
+                        entity_data = {
+                            'document_id': result['document_id'],
+                            'entity_type': entity['entity_type'],
+                            'key_identifier': entity['key_identifier'],
+                            'core_content': entity['core_content'],
+                            'context_tags': entity['context_tags'],
+                            'priority_level': entity['priority_level'],
+                            'confidence': entity['confidence'],
+                            'summary': entity['summary'],
+                            'source_text': entity['source_text'],
+                            'source_page': entity['source_page'],
+                            'source_section': entity['source_section'],
+                            'extraction_method': entity['extraction_method']
+                        }
+                        entities_data.append(entity_data)
+                    
+                    # Bulk create intelligent knowledge entities
+                    created_entities = crud.bulk_create_intelligent_knowledge_entities(db, entities_data)
+                    
+                    successful_categorizations.append({
+                        'document_id': result['document_id'],
+                        'document_intelligence_id': doc_intelligence.id,
+                        'entities_created': len(created_entities)
+                    })
+                    
+                except Exception as db_error:
+                    logger.error(f"Database error for document {result['document_id']}: {db_error}")
+                    failed_categorizations.append({
+                        'document_id': result['document_id'],
+                        'error': f"Database error: {str(db_error)}"
+                    })
+        
+        return {
+            "message": "Bulk intelligent categorization completed",
+            "total_documents": len(request.document_ids),
+            "successful": len(successful_categorizations),
+            "failed": len(failed_categorizations),
+            "successful_categorizations": successful_categorizations,
+            "failed_categorizations": failed_categorizations
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk intelligent categorization failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Bulk intelligent categorization failed: {str(e)}")
+
+
+@app.post("/intelligent-knowledge/search")
+async def search_intelligent_knowledge(
+    request: IntelligentKnowledgeSearchRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Search intelligent knowledge entities with advanced filtering.
+    
+    This endpoint provides semantic search across all intelligent knowledge entities
+    with filtering by entity type, priority level, and confidence threshold.
+    """
+    try:
+        results = crud.search_intelligent_knowledge(
+            db=db,
+            query=request.query,
+            entity_type=request.entity_type,
+            priority_level=request.priority_level,
+            confidence_threshold=request.confidence_threshold,
+            max_results=request.max_results
+        )
+        
+        return {
+            "query": request.query,
+            "results": results,
+            "total_results": len(results),
+            "filters_applied": {
+                "entity_type": request.entity_type,
+                "priority_level": request.priority_level,
+                "confidence_threshold": request.confidence_threshold
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Intelligent knowledge search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@app.get("/intelligent-knowledge/analytics")
+async def get_intelligent_knowledge_analytics(db: Session = Depends(get_db)):
+    """
+    Get analytics and insights about intelligent knowledge entities.
+    
+    This endpoint provides comprehensive analytics including:
+    - Total entity counts
+    - Distribution by entity type and priority level
+    - Average confidence scores
+    - Recent activity metrics
+    """
+    try:
+        analytics = crud.get_intelligent_knowledge_analytics(db)
+        return analytics
+        
+    except Exception as e:
+        logger.error(f"Failed to get intelligent knowledge analytics: {e}")
+        raise HTTPException(status_code=500, detail=f"Analytics failed: {str(e)}")
+
+
+@app.get("/intelligent-knowledge/entities")
+async def list_intelligent_knowledge_entities(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    document_id: Optional[int] = Query(None),
+    entity_type: Optional[str] = Query(None),
+    priority_level: Optional[str] = Query(None),
+    confidence_threshold: float = Query(0.0, ge=0.0, le=1.0),
+    db: Session = Depends(get_db)
+):
+    """
+    List intelligent knowledge entities with optional filtering.
+    
+    This endpoint provides access to all intelligent knowledge entities
+    with filtering by document, entity type, priority level, and confidence.
+    """
+    try:
+        entities = crud.get_intelligent_knowledge_entities(
+            db=db,
+            skip=skip,
+            limit=limit,
+            document_id=document_id,
+            entity_type=entity_type,
+            priority_level=priority_level,
+            confidence_threshold=confidence_threshold
+        )
+        
+        # Format entities for response
+        formatted_entities = []
+        for entity in entities:
+            formatted_entities.append({
+                "id": entity.id,
+                "entity_type": entity.entity_type.value,
+                "key_identifier": entity.key_identifier,
+                "core_content": entity.core_content[:200] + "..." if len(entity.core_content) > 200 else entity.core_content,
+                "context_tags": entity.context_tags,
+                "priority_level": entity.priority_level.value,
+                "summary": entity.summary,
+                "confidence": entity.confidence,
+                "document_id": entity.document_id,
+                "extracted_at": entity.extracted_at.isoformat() if entity.extracted_at else None,
+                "last_updated": entity.last_updated.isoformat() if entity.last_updated else None
+            })
+        
+        return {
+            "entities": formatted_entities,
+            "total": len(formatted_entities),
+            "filters_applied": {
+                "document_id": document_id,
+                "entity_type": entity_type,
+                "priority_level": priority_level,
+                "confidence_threshold": confidence_threshold
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to list intelligent knowledge entities: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list entities: {str(e)}")
 
 
 # Initialize database on startup

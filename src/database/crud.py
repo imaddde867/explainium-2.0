@@ -16,7 +16,8 @@ from src.database.models import (
     Document, Process, DecisionPoint, ComplianceItem, RiskAssessment,
     KnowledgeEntity, ProcessingTask, SystemMetrics,
     KnowledgeDomain, HierarchyLevel, CriticalityLevel,
-    ComplianceStatus, RiskLevel, ProcessingStatus
+    ComplianceStatus, RiskLevel, ProcessingStatus,
+    IntelligentKnowledgeEntity, DocumentIntelligence
 )
 
 logger = logging.getLogger(__name__)
@@ -574,6 +575,210 @@ def get_knowledge_entities(
         raise CRUDError(f"Failed to get knowledge entities: {str(e)}")
 
 
+# Intelligent Knowledge Entity CRUD Operations
+def create_intelligent_knowledge_entity(
+    db: Session,
+    document_id: int,
+    entity_type: str,
+    key_identifier: str,
+    core_content: str,
+    context_tags: List[str],
+    priority_level: str,
+    confidence: float,
+    summary: Optional[str] = None,
+    source_text: Optional[str] = None,
+    source_page: Optional[int] = None,
+    source_section: Optional[str] = None,
+    extraction_method: Optional[str] = None
+) -> "IntelligentKnowledgeEntity":
+    """Create a new intelligent knowledge entity"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        
+        entity = IntelligentKnowledgeEntity(
+            document_id=document_id,
+            entity_type=entity_type,
+            key_identifier=key_identifier,
+            core_content=core_content,
+            context_tags=context_tags,
+            priority_level=priority_level,
+            confidence=confidence,
+            summary=summary,
+            source_text=source_text,
+            source_page=source_page,
+            source_section=source_section,
+            extraction_method=extraction_method
+        )
+        db.add(entity)
+        db.commit()
+        db.refresh(entity)
+        logger.info(f"Created intelligent knowledge entity: {key_identifier} (ID: {entity.id})")
+        return entity
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Failed to create intelligent knowledge entity: {e}")
+        raise CRUDError(f"Failed to create intelligent knowledge entity: {str(e)}")
+
+
+def get_intelligent_knowledge_entities(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    document_id: Optional[int] = None,
+    entity_type: Optional[str] = None,
+    priority_level: Optional[str] = None,
+    confidence_threshold: float = 0.0
+) -> List["IntelligentKnowledgeEntity"]:
+    """Get intelligent knowledge entities with optional filtering"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        
+        query = db.query(IntelligentKnowledgeEntity)
+        
+        if document_id:
+            query = query.filter(IntelligentKnowledgeEntity.document_id == document_id)
+        if entity_type:
+            query = query.filter(IntelligentKnowledgeEntity.entity_type == entity_type)
+        if priority_level:
+            query = query.filter(IntelligentKnowledgeEntity.priority_level == priority_level)
+        if confidence_threshold > 0:
+            query = query.filter(IntelligentKnowledgeEntity.confidence >= confidence_threshold)
+        
+        return query.order_by(desc(IntelligentKnowledgeEntity.confidence)).offset(skip).limit(limit).all()
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to get intelligent knowledge entities: {e}")
+        raise CRUDError(f"Failed to get intelligent knowledge entities: {str(e)}")
+
+
+def get_intelligent_knowledge_entity(db: Session, entity_id: int) -> Optional["IntelligentKnowledgeEntity"]:
+    """Get intelligent knowledge entity by ID"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        return db.query(IntelligentKnowledgeEntity).filter(IntelligentKnowledgeEntity.id == entity_id).first()
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to get intelligent knowledge entity {entity_id}: {e}")
+        raise CRUDError(f"Failed to get intelligent knowledge entity: {str(e)}")
+
+
+def update_intelligent_knowledge_entity(
+    db: Session,
+    entity_id: int,
+    **kwargs
+) -> Optional["IntelligentKnowledgeEntity"]:
+    """Update intelligent knowledge entity"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        
+        entity = db.query(IntelligentKnowledgeEntity).filter(IntelligentKnowledgeEntity.id == entity_id).first()
+        if not entity:
+            return None
+        
+        for key, value in kwargs.items():
+            if hasattr(entity, key):
+                setattr(entity, key, value)
+        
+        entity.last_updated = datetime.now()
+        db.commit()
+        db.refresh(entity)
+        logger.info(f"Updated intelligent knowledge entity: {entity_id}")
+        return entity
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Failed to update intelligent knowledge entity {entity_id}: {e}")
+        raise CRUDError(f"Failed to update intelligent knowledge entity: {str(e)}")
+
+
+def delete_intelligent_knowledge_entity(db: Session, entity_id: int) -> bool:
+    """Delete intelligent knowledge entity"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        
+        entity = db.query(IntelligentKnowledgeEntity).filter(IntelligentKnowledgeEntity.id == entity_id).first()
+        if not entity:
+            return False
+        
+        db.delete(entity)
+        db.commit()
+        logger.info(f"Deleted intelligent knowledge entity: {entity_id}")
+        return True
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Failed to delete intelligent knowledge entity {entity_id}: {e}")
+        raise CRUDError(f"Failed to delete intelligent knowledge entity: {str(e)}")
+
+
+# Document Intelligence CRUD Operations
+def create_document_intelligence(
+    db: Session,
+    document_id: int,
+    document_type: str,
+    target_audience: str,
+    information_architecture: Dict[str, Any],
+    priority_contexts: List[str],
+    confidence_score: float,
+    analysis_method: Optional[str] = None
+) -> "DocumentIntelligence":
+    """Create a new document intelligence assessment"""
+    try:
+        from src.database.models import DocumentIntelligence
+        
+        intelligence = DocumentIntelligence(
+            document_id=document_id,
+            document_type=document_type,
+            target_audience=target_audience,
+            information_architecture=information_architecture,
+            priority_contexts=priority_contexts,
+            confidence_score=confidence_score,
+            analysis_method=analysis_method
+        )
+        db.add(intelligence)
+        db.commit()
+        db.refresh(intelligence)
+        logger.info(f"Created document intelligence assessment for document: {document_id}")
+        return intelligence
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Failed to create document intelligence assessment: {e}")
+        raise CRUDError(f"Failed to create document intelligence assessment: {str(e)}")
+
+
+def get_document_intelligence(db: Session, document_id: int) -> Optional["DocumentIntelligence"]:
+    """Get document intelligence assessment by document ID"""
+    try:
+        from src.database.models import DocumentIntelligence
+        return db.query(DocumentIntelligence).filter(DocumentIntelligence.document_id == document_id).first()
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to get document intelligence for document {document_id}: {e}")
+        raise CRUDError(f"Failed to get document intelligence: {str(e)}")
+
+
+def update_document_intelligence(
+    db: Session,
+    document_id: int,
+    **kwargs
+) -> Optional["DocumentIntelligence"]:
+    """Update document intelligence assessment"""
+    try:
+        from src.database.models import DocumentIntelligence
+        
+        intelligence = db.query(DocumentIntelligence).filter(DocumentIntelligence.document_id == document_id).first()
+        if not intelligence:
+            return None
+        
+        for key, value in kwargs.items():
+            if hasattr(intelligence, key):
+                setattr(intelligence, key, value)
+        
+        db.commit()
+        db.refresh(intelligence)
+        logger.info(f"Updated document intelligence for document: {document_id}")
+        return intelligence
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Failed to update document intelligence for document {document_id}: {e}")
+        raise CRUDError(f"Failed to update document intelligence: {str(e)}")
+
+
 # Processing Task CRUD Operations
 def create_processing_task(
     db: Session,
@@ -875,6 +1080,141 @@ def bulk_create_knowledge_entities(db: Session, entities: List[Dict[str, Any]]) 
         db.rollback()
         logger.error(f"Failed to bulk create knowledge entities: {e}")
         raise CRUDError(f"Failed to bulk create knowledge entities: {str(e)}")
+
+
+def bulk_create_intelligent_knowledge_entities(
+    db: Session, 
+    entities: List[Dict[str, Any]]
+) -> List["IntelligentKnowledgeEntity"]:
+    """Bulk create intelligent knowledge entities"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        
+        created_entities = []
+        for entity_data in entities:
+            entity = IntelligentKnowledgeEntity(**entity_data)
+            db.add(entity)
+            created_entities.append(entity)
+        
+        db.commit()
+        
+        # Refresh all entities to get their IDs
+        for entity in created_entities:
+            db.refresh(entity)
+        
+        logger.info(f"Bulk created {len(created_entities)} intelligent knowledge entities")
+        return created_entities
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Failed to bulk create intelligent knowledge entities: {e}")
+        raise CRUDError(f"Failed to bulk create intelligent knowledge entities: {str(e)}")
+
+
+def search_intelligent_knowledge(
+    db: Session,
+    query: str,
+    entity_type: Optional[str] = None,
+    priority_level: Optional[str] = None,
+    confidence_threshold: float = 0.7,
+    max_results: int = 50
+) -> List[Dict[str, Any]]:
+    """Search intelligent knowledge entities"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        
+        # Start with base query
+        base_query = db.query(IntelligentKnowledgeEntity)
+        
+        # Apply filters
+        if entity_type:
+            base_query = base_query.filter(IntelligentKnowledgeEntity.entity_type == entity_type)
+        if priority_level:
+            base_query = base_query.filter(IntelligentKnowledgeEntity.priority_level == priority_level)
+        if confidence_threshold > 0:
+            base_query = base_query.filter(IntelligentKnowledgeEntity.confidence >= confidence_threshold)
+        
+        # Apply text search
+        search_terms = query.lower().split()
+        search_filters = []
+        
+        for term in search_terms:
+            term_filter = or_(
+                IntelligentKnowledgeEntity.key_identifier.ilike(f"%{term}%"),
+                IntelligentKnowledgeEntity.core_content.ilike(f"%{term}%"),
+                IntelligentKnowledgeEntity.summary.ilike(f"%{term}%")
+            )
+            search_filters.append(term_filter)
+        
+        if search_filters:
+            base_query = base_query.filter(and_(*search_filters))
+        
+        # Execute query and format results
+        entities = base_query.order_by(desc(IntelligentKnowledgeEntity.confidence)).limit(max_results).all()
+        
+        results = []
+        for entity in entities:
+            results.append({
+                "id": entity.id,
+                "entity_type": entity.entity_type.value,
+                "key_identifier": entity.key_identifier,
+                "core_content": entity.core_content[:200] + "..." if len(entity.core_content) > 200 else entity.core_content,
+                "context_tags": entity.context_tags,
+                "priority_level": entity.priority_level.value,
+                "summary": entity.summary,
+                "confidence": entity.confidence,
+                "document_id": entity.document_id,
+                "extracted_at": entity.extracted_at.isoformat() if entity.extracted_at else None
+            })
+        
+        return results
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to search intelligent knowledge: {e}")
+        raise CRUDError(f"Failed to search intelligent knowledge: {str(e)}")
+
+
+def get_intelligent_knowledge_analytics(db: Session) -> Dict[str, Any]:
+    """Get analytics for intelligent knowledge entities"""
+    try:
+        from src.database.models import IntelligentKnowledgeEntity
+        
+        # Get total count
+        total_entities = db.query(func.count(IntelligentKnowledgeEntity.id)).scalar()
+        
+        # Get count by entity type
+        entity_type_counts = db.query(
+            IntelligentKnowledgeEntity.entity_type,
+            func.count(IntelligentKnowledgeEntity.id)
+        ).group_by(IntelligentKnowledgeEntity.entity_type).all()
+        
+        # Get count by priority level
+        priority_counts = db.query(
+            IntelligentKnowledgeEntity.priority_level,
+            func.count(IntelligentKnowledgeEntity.id)
+        ).group_by(IntelligentKnowledgeEntity.priority_level).all()
+        
+        # Get average confidence
+        avg_confidence = db.query(func.avg(IntelligentKnowledgeEntity.confidence)).scalar()
+        
+        # Get recent entities (last 7 days)
+        week_ago = datetime.now() - timedelta(days=7)
+        recent_entities = db.query(func.count(IntelligentKnowledgeEntity.id)).filter(
+            IntelligentKnowledgeEntity.extracted_at >= week_ago
+        ).scalar()
+        
+        return {
+            "total_entities": total_entities,
+            "entity_type_distribution": {t.value: c for t, c in entity_type_counts},
+            "priority_level_distribution": {p.value: c for p, c in priority_counts},
+            "average_confidence": float(avg_confidence) if avg_confidence else 0.0,
+            "recent_entities_week": recent_entities,
+            "generated_at": datetime.now().isoformat()
+        }
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to get intelligent knowledge analytics: {e}")
+        raise CRUDError(f"Failed to get intelligent knowledge analytics: {str(e)}")
 
 
 # Cleanup operations

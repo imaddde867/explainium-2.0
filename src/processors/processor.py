@@ -35,6 +35,7 @@ from src.logging_config import get_logger, log_processing_step
 from src.core.config import config as config_manager
 from src.exceptions import ProcessingError, AIError
 from src.ai.advanced_knowledge_engine import AdvancedKnowledgeEngine
+from src.ai.intelligent_knowledge_categorizer import IntelligentKnowledgeCategorizer
 
 logger = get_logger(__name__)
 
@@ -55,6 +56,7 @@ class DocumentProcessor:
     def __init__(self):
         self.tika_url = config_manager.get_tika_url()
         self.advanced_engine = AdvancedKnowledgeEngine(config_manager.ai)
+        self.intelligent_categorizer = IntelligentKnowledgeCategorizer(config_manager.ai)
         self.supported_formats = {
             'text': ['.pdf', '.doc', '.docx', '.txt', '.rtf'],
             'image': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'],
@@ -72,6 +74,9 @@ class DocumentProcessor:
         
         # Initialize advanced knowledge engine
         self._init_knowledge_engine()
+        
+        # Initialize intelligent knowledge categorizer
+        self._init_intelligent_categorizer()
     
     def _init_ocr(self):
         """Initialize OCR capabilities"""
@@ -115,6 +120,23 @@ class DocumentProcessor:
         except Exception as e:
             logger.warning(f"Advanced knowledge engine initialization failed: {e}")
             self.knowledge_engine_available = False
+    
+    def _init_intelligent_categorizer(self):
+        """Initialize the intelligent knowledge categorizer"""
+        try:
+            import asyncio
+            # If we're already inside an event loop (e.g., FastAPI with uvicorn reload), schedule task
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.intelligent_categorizer.initialize())
+                logger.info("Scheduled async initialization of intelligent knowledge categorizer")
+            except RuntimeError:
+                # No running loop; safe to run synchronously
+                asyncio.run(self.intelligent_categorizer.initialize())
+            self.intelligent_categorizer_available = True  # will be true once initialize completes
+        except Exception as e:
+            logger.warning(f"Intelligent knowledge categorizer initialization failed: {e}")
+            self.intelligent_categorizer_available = False
     
     async def process_document_with_context(self, document: Dict[str, Any], company_context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -168,6 +190,19 @@ class DocumentProcessor:
             # Extract deep knowledge using the advanced engine
             knowledge_extraction = await self.advanced_engine.extract_deep_knowledge(enhanced_document)
             enhanced_document['knowledge_extraction'] = knowledge_extraction
+            
+            # Step 6: Intelligent Knowledge Categorization (NEW)
+            if self.intelligent_categorizer_available:
+                try:
+                    intelligent_knowledge = await self.intelligent_categorizer.categorize_document(enhanced_document)
+                    enhanced_document['intelligent_knowledge'] = intelligent_knowledge
+                    logger.info(f"Intelligent knowledge categorization completed: {len(intelligent_knowledge.entities)} entities generated")
+                except Exception as e:
+                    logger.warning(f"Intelligent knowledge categorization failed: {e}")
+                    enhanced_document['intelligent_knowledge'] = None
+            else:
+                logger.warning("Intelligent knowledge categorizer not available")
+                enhanced_document['intelligent_knowledge'] = None
             
             logger.info(f"Successfully processed document with context: {document.get('id', 'unknown')}")
             return enhanced_document
@@ -227,6 +262,109 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"Failed to extract tacit knowledge: {e}")
             raise ProcessingError(f"Tacit knowledge extraction failed: {str(e)}")
+    
+    async def categorize_document_intelligently(self, document: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply intelligent knowledge categorization to a single document.
+        
+        This method implements the three-phase intelligent knowledge categorization framework:
+        1. Document Intelligence Assessment
+        2. Intelligent Knowledge Categorization
+        3. Database-Optimized Output Generation
+        
+        Returns structured, actionable knowledge entities ready for database ingestion.
+        """
+        try:
+            if not self.intelligent_categorizer_available:
+                raise AIError("Intelligent knowledge categorizer not initialized")
+            
+            # Prepare document for categorization
+            doc_for_categorization = {
+                'id': document.get('id'),
+                'content': document.get('content', ''),
+                'metadata': document.get('metadata', {}),
+                'type': document.get('type', 'unknown'),
+                'filename': document.get('filename', ''),
+                'uploaded_at': document.get('uploaded_at')
+            }
+            
+            # Apply intelligent categorization
+            categorization_result = await self.intelligent_categorizer.categorize_document(doc_for_categorization)
+            
+            # Format result for database integration
+            result = {
+                'document_id': document.get('id'),
+                'categorization_timestamp': datetime.now().isoformat(),
+                'document_intelligence': {
+                    'document_type': categorization_result.document_intelligence.document_type.value,
+                    'target_audience': categorization_result.document_intelligence.target_audience.value,
+                    'information_architecture': categorization_result.document_intelligence.information_architecture,
+                    'priority_contexts': categorization_result.document_intelligence.priority_contexts,
+                    'confidence_score': categorization_result.document_intelligence.confidence_score,
+                    'analysis_method': categorization_result.document_intelligence.analysis_method
+                },
+                'intelligent_entities': [
+                    {
+                        'entity_type': entity.entity_type.value,
+                        'key_identifier': entity.key_identifier,
+                        'core_content': entity.core_content,
+                        'context_tags': entity.context_tags,
+                        'priority_level': entity.priority_level.value,
+                        'summary': entity.summary,
+                        'confidence': entity.confidence,
+                        'source_text': entity.source_text,
+                        'source_page': entity.source_page,
+                        'source_section': entity.source_section,
+                        'extraction_method': entity.extraction_method
+                    }
+                    for entity in categorization_result.entities
+                ],
+                'quality_metrics': categorization_result.quality_metrics,
+                'processing_timestamp': categorization_result.processing_timestamp.isoformat()
+            }
+            
+            logger.info(f"Intelligent categorization completed for document {document.get('id')}: {len(categorization_result.entities)} entities")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to categorize document intelligently: {e}")
+            raise ProcessingError(f"Intelligent categorization failed: {str(e)}")
+    
+    async def bulk_categorize_documents(self, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Apply intelligent knowledge categorization to multiple documents.
+        
+        This method processes multiple documents in parallel for efficiency.
+        """
+        try:
+            if not self.intelligent_categorizer_available:
+                raise AIError("Intelligent knowledge categorizer not initialized")
+            
+            import asyncio
+            
+            # Process documents concurrently
+            tasks = [self.categorize_document_intelligently(doc) for doc in documents]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Handle any exceptions and format results
+            processed_results = []
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.error(f"Failed to categorize document {i}: {result}")
+                    processed_results.append({
+                        'document_id': documents[i].get('id'),
+                        'error': str(result),
+                        'status': 'failed'
+                    })
+                else:
+                    processed_results.append(result)
+            
+            logger.info(f"Bulk categorization completed: {len(processed_results)} documents processed")
+            return processed_results
+            
+        except Exception as e:
+            logger.error(f"Failed to bulk categorize documents: {e}")
+            raise ProcessingError(f"Bulk categorization failed: {str(e)}")
     
     def process_document(self, file_path: str, document_id: int) -> Dict[str, Any]:
         """

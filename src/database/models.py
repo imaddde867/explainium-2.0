@@ -32,6 +32,12 @@ class KnowledgeDomain(PyEnum):
     REGULATORY = "regulatory"
     ENVIRONMENTAL = "environmental"
     FINANCIAL = "financial"
+    PROCESS_INTELLIGENCE = "process_intelligence"
+    COMPLIANCE_GOVERNANCE = "compliance_governance"
+    QUANTITATIVE_INTELLIGENCE = "quantitative_intelligence"
+    ORGANIZATIONAL_INTELLIGENCE = "organizational_intelligence"
+    KNOWLEDGE_DEFINITIONS = "knowledge_definitions"
+    RISK_MITIGATION = "risk_mitigation"
 
 
 class HierarchyLevel(PyEnum):
@@ -77,6 +83,55 @@ class ProcessingStatus(PyEnum):
     CANCELLED = "cancelled"
 
 
+class EntityType(PyEnum):
+    """Entity types for intelligent categorization"""
+    PROCESS = "process"
+    POLICY = "policy"
+    METRIC = "metric"
+    ROLE = "role"
+    COMPLIANCE_REQUIREMENT = "compliance_requirement"
+    RISK_ASSESSMENT = "risk_assessment"
+    WORKFLOW = "workflow"
+    DECISION_POINT = "decision_point"
+    TECHNICAL_SPECIFICATION = "technical_specification"
+    ORGANIZATIONAL_STRUCTURE = "organizational_structure"
+    KNOWLEDGE_CONCEPT = "knowledge_concept"
+    MITIGATION_STRATEGY = "mitigation_strategy"
+
+
+class PriorityLevel(PyEnum):
+    """Priority levels for business criticality"""
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class DocumentType(PyEnum):
+    """Document types for intelligence assessment"""
+    MANUAL = "manual"
+    CONTRACT = "contract"
+    REPORT = "report"
+    POLICY = "policy"
+    SPECIFICATION = "specification"
+    PROCEDURE = "procedure"
+    GUIDELINE = "guideline"
+    STANDARD = "standard"
+    FORM = "form"
+    TEMPLATE = "template"
+
+
+class TargetAudience(PyEnum):
+    """Target audience for documents"""
+    TECHNICAL_STAFF = "technical_staff"
+    MANAGEMENT = "management"
+    END_USERS = "end_users"
+    COMPLIANCE_OFFICERS = "compliance_officers"
+    TRAINING_PERSONNEL = "training_personnel"
+    MAINTENANCE_TEAM = "maintenance_team"
+    QUALITY_ASSURANCE = "quality_assurance"
+    REGULATORY_BODIES = "regulatory_bodies"
+
+
 # Core Models
 class Document(Base):
     """Document model for uploaded files"""
@@ -111,6 +166,8 @@ class Document(Base):
     decision_points = relationship("DecisionPoint", back_populates="document", cascade="all, delete-orphan")
     compliance_items = relationship("ComplianceItem", back_populates="document", cascade="all, delete-orphan")
     risk_assessments = relationship("RiskAssessment", back_populates="document", cascade="all, delete-orphan")
+    intelligent_entities = relationship("IntelligentKnowledgeEntity", back_populates="document", cascade="all, delete-orphan")
+    intelligence_assessment = relationship("DocumentIntelligence", back_populates="document", uselist=False, cascade="all, delete-orphan")
     
     # Indexes
     __table_args__ = (
@@ -336,13 +393,91 @@ class KnowledgeEntity(Base):
     
     # Indexes
     __table_args__ = (
-        Index('idx_entities_text_label', 'text', 'label'),
-        Index('idx_entities_document_label', 'document_id', 'label'),
-        Index('idx_entities_confidence', 'confidence'),
+        Index("idx_knowledge_entities_document_label", "document_id", "label"),
+        Index("idx_knowledge_entities_confidence", "confidence"),
     )
     
     def __repr__(self):
         return f"<KnowledgeEntity(id={self.id}, text='{self.text}', label='{self.label}')>"
+
+
+class IntelligentKnowledgeEntity(Base):
+    """Intelligent knowledge entities with enhanced categorization"""
+    __tablename__ = "intelligent_knowledge_entities"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
+    
+    # Core entity information
+    entity_type = Column(Enum(EntityType), nullable=False, index=True)
+    key_identifier = Column(String(500), nullable=False, index=True)
+    core_content = Column(Text, nullable=False)
+    context_tags = Column(JSON)  # List of relevant categories and relationships
+    priority_level = Column(Enum(PriorityLevel), nullable=False, index=True)
+    
+    # Optional human-readable summary
+    summary = Column(Text)  # 2-3 sentences maximum
+    
+    # Quality metrics
+    confidence = Column(Float, nullable=False, index=True)
+    extraction_method = Column(String(100))  # Method used for extraction
+    
+    # Source information
+    source_text = Column(Text)  # Original text from which entity was extracted
+    source_page = Column(Integer)  # Page number in source document
+    source_section = Column(String(200))  # Section or chapter
+    
+    # Metadata
+    extracted_at = Column(DateTime, default=func.now(), nullable=False)
+    last_updated = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    document = relationship("Document", back_populates="intelligent_entities")
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_intelligent_entities_document_type", "document_id", "entity_type"),
+        Index("idx_intelligent_entities_priority", "priority_level"),
+        Index("idx_intelligent_entities_confidence", "confidence"),
+        Index("idx_intelligent_entities_key_identifier", "key_identifier"),
+    )
+    
+    def __repr__(self):
+        return f"<IntelligentKnowledgeEntity(id={self.id}, type='{self.entity_type}', identifier='{self.key_identifier}')>"
+
+
+class DocumentIntelligence(Base):
+    """Document intelligence assessment results"""
+    __tablename__ = "document_intelligence"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
+    
+    # Document type assessment
+    document_type = Column(Enum(DocumentType), nullable=False, index=True)
+    target_audience = Column(Enum(TargetAudience), nullable=False, index=True)
+    
+    # Information architecture
+    information_architecture = Column(JSON)  # How knowledge is organized and interconnected
+    priority_contexts = Column(JSON)  # Which information types are most critical
+    
+    # Analysis metadata
+    analysis_timestamp = Column(DateTime, default=func.now(), nullable=False)
+    analysis_method = Column(String(100))
+    confidence_score = Column(Float, nullable=False)
+    
+    # Relationships
+    document = relationship("Document", back_populates="intelligence_assessment")
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_document_intelligence_document", "document_id"),
+        Index("idx_document_intelligence_type", "document_type"),
+        Index("idx_document_intelligence_audience", "target_audience"),
+    )
+    
+    def __repr__(self):
+        return f"<DocumentIntelligence(id={self.id}, document_id={self.document_id}, type='{self.document_type}')>"
 
 
 class ProcessingTask(Base):
@@ -450,6 +585,8 @@ def get_all_models():
         ComplianceItem,
         RiskAssessment,
         KnowledgeEntity,
+        IntelligentKnowledgeEntity,
+        DocumentIntelligence,
         ProcessingTask,
         SystemMetrics
     ]
@@ -464,6 +601,8 @@ def get_model_by_name(model_name: str):
         'ComplianceItem': ComplianceItem,
         'RiskAssessment': RiskAssessment,
         'KnowledgeEntity': KnowledgeEntity,
+        'IntelligentKnowledgeEntity': IntelligentKnowledgeEntity,
+        'DocumentIntelligence': DocumentIntelligence,
         'ProcessingTask': ProcessingTask,
         'SystemMetrics': SystemMetrics
     }
