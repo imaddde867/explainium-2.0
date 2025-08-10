@@ -79,71 +79,151 @@ except Exception as e:
     import_error_msg = str(e)
     print(f"❌ AI Engine check failed: {e}")
 
+# New: Smart rules extractor
+from ai.extraction.smart_rules import extract_structured_knowledge
+
 def process_document(uploaded_file, use_ai=True):
     """Process uploaded document/media and extract knowledge"""
     try:
         file_type = uploaded_file.type
         file_name = uploaded_file.name
         
-        # Add AI processing indicator
-        if use_ai and AI_AVAILABLE:
-            # Try to use AI engine for enhanced processing
-            try:
-                knowledge_items = process_with_ai_engine(uploaded_file, file_name, file_type)
-                if knowledge_items:
-                    return knowledge_items
-            except Exception as e:
-                print(f"AI processing failed, falling back to text analysis: {e}")
+        # Unified: try smart AI engine pathway first (local/LLM optional)
+        knowledge_items = process_with_ai_engine(uploaded_file, file_name, file_type)
+        if knowledge_items:
+            return knowledge_items
         
-        # Fallback to text-based analysis
-        if file_type == "application/pdf":
-            content = extract_pdf_content(uploaded_file)
-            knowledge_items = extract_knowledge_from_text(content, file_name)
-            
-        elif file_type.startswith("image/"):
-            knowledge_items = extract_knowledge_from_image(uploaded_file, file_name)
-            
-        elif file_type.startswith("video/"):
-            knowledge_items = extract_knowledge_from_video(uploaded_file, file_name)
-            
-        elif file_type.startswith("audio/"):
-            knowledge_items = extract_knowledge_from_audio(uploaded_file, file_name)
-            
-        elif file_type == "text/plain":
-            content = str(uploaded_file.read(), "utf-8")
-            knowledge_items = extract_knowledge_from_text(content, file_name)
-            
-        else:
-            # Try to read as text
-            try:
-                content = str(uploaded_file.read(), "utf-8")
-                knowledge_items = extract_knowledge_from_text(content, file_name)
-            except:
-                knowledge_items = [{
-                    "Knowledge": f"Unsupported File Type: {file_type}",
-                    "Type": "systems",
-                    "Confidence": 0.5,
-                    "Category": "File Processing",
-                    "Description": f"File type {file_type} is not yet supported",
-                    "Source": file_name,
-                    "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }]
-        
-        return knowledge_items
+        # Fallback: extract text and apply smart rules
+        text = get_text_from_file(uploaded_file, file_type)
+        return extract_structured_knowledge(text, file_name)
         
     except Exception as e:
         st.error(f"Error processing file: {e}")
         return []
 
+
 def process_with_ai_engine(uploaded_file, file_name, file_type):
-    """Process file with AI engine if available"""
+    """Process file with AI engine if available; returns list or None"""
     try:
-        # This would use the full AI engine when available
-        # For now, return None to fall back to text analysis
+        if not AI_AVAILABLE:
+            return None
+        
+        # Persist to temp for processors
+        import tempfile
+        suffix = {
+            'application/pdf': '.pdf',
+            'text/plain': '.txt',
+        }.get(file_type, '')
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            data = uploaded_file.read()
+            tmp.write(data)
+            tmp_path = tmp.name
+        uploaded_file.seek(0)
+        
+        # Use IntelligentDocumentProcessor if available for richer extraction
+        try:
+            from processors.intelligent_document_processor import IntelligentDocumentProcessor
+            import asyncio
+            processor = IntelligentDocumentProcessor()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(processor.process_document(tmp_path, 0))
+            loop.close()
+            # Prefer the plain text from extraction and re-run smart rules for consistent frontend view
+            text = result.get('extraction_metadata', {}).get('text') or result.get('extraction_metadata', {}).get('content') or result.get('knowledge_extraction', {}).get('passes', {}).get('raw_text', '')
+            if not text:
+                # fallback to raw extraction result if present
+                text = result.get('extraction_metadata', {}).get('text', '')
+            if text:
+                return extract_structured_knowledge(text, file_name)
+        except Exception as e:
+            # Fall through to rules-only path
+            pass
+        
         return None
-    except Exception as e:
-        print(f"AI engine processing failed: {e}")
+    except Exception:
         return None
+
+
+def get_text_from_file(uploaded_file, file_type: str) -> str:
+    """Unified text extractor for PDFs/images/audio/video/plain."""
+    try:
+        if file_type == "application/pdf":
+            try:
+                import fitz
+                uploaded_file.seek(0)
+                doc = fitz.open(stream=uploaded_file.read(), filetype='pdf')
+                uploaded_file.seek(0)
+                text_parts = []
+                for i in range(len(doc)):
+                    page = doc.load_page(i)
+                    text_parts.append(page.get_text())
+                return "\n\n".join(text_parts)
+            except Exception:
+                # Fallback to PyPDF2
+                import PyPDF2
+                uploaded_file.seek(0)
+                reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.read()))
+                uploaded_file.seek(0)
+                out = []
+                for page in reader.pages:
+                    out.append(page.extract_text() or "")
+                return "\n\n".join(out)
+        
+        if file_type.startswith("image/"):
+            try:
+                from PIL import Image
+                import pytesseract
+                uploaded_file.seek(0)
+                img = Image.open(uploaded_file)
+                text = pytesseract.image_to_string(img)
+                uploaded_file.seek(0)
+                return text or ""
+            except Exception:
+                return ""
+        
+        if file_type.startswith("audio/") or file_type.startswith("video/"):
+            # Best-effort: try Whisper for audio; for video, skip heavy decode here
+            try:
+                import whisper, tempfile, subprocess
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.bin') as tmp:
+                    tmp.write(uploaded_file.read())
+                    tmp_path = tmp.name
+                uploaded_file.seek(0)
+                audio_path = tmp_path
+                if file_type.startswith("video/"):
+                    # Extract audio via ffmpeg if available
+                    wav_path = tmp_path + '.wav'
+                    try:
+                        subprocess.run(['ffmpeg', '-i', tmp_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', wav_path, '-y'], check=True, capture_output=True)
+                        audio_path = wav_path
+                    except Exception:
+                        # cannot extract audio; no text
+                        return ""
+                model = whisper.load_model("base")
+                res = model.transcribe(audio_path)
+                return res.get('text', '')
+            except Exception:
+                return ""
+        
+        if file_type == "text/plain":
+            uploaded_file.seek(0)
+            return str(uploaded_file.read(), "utf-8", errors="ignore")
+        
+        # Unknown: attempt utf-8 read
+        uploaded_file.seek(0)
+        try:
+            return str(uploaded_file.read(), "utf-8", errors="ignore")
+        finally:
+            uploaded_file.seek(0)
+    except Exception:
+        uploaded_file.seek(0)
+        return ""
+
+# Replace noisy heuristic-based text extractor with smart rules
+
+def extract_knowledge_from_text(text, source_name):
+    return extract_structured_knowledge(text, source_name)
 
 def extract_pdf_content(uploaded_file):
     """Extract text from PDF"""
@@ -221,7 +301,7 @@ def extract_knowledge_from_image(uploaded_file, file_name):
             text = pytesseract.image_to_string(image)
             if text.strip():
                 # Extract knowledge from OCR text
-                text_knowledge = extract_knowledge_from_text(text, f"{file_name} (OCR)")
+                text_knowledge = extract_structured_knowledge(text, f"{file_name} (OCR)")
                 knowledge_items.extend(text_knowledge)
         except:
             # OCR not available, add note
@@ -249,16 +329,12 @@ def extract_knowledge_from_image(uploaded_file, file_name):
         }]
 
 def extract_knowledge_from_video(uploaded_file, file_name):
-    """Extract knowledge from video files"""
+    """Extract knowledge from video files (metadata + transcript via unified path)."""
     try:
-        # Get file size and basic info
+        # Minimal metadata
         file_size = len(uploaded_file.read())
-        uploaded_file.seek(0)  # Reset file pointer
-        
-        knowledge_items = []
-        
-        # Basic video metadata
-        knowledge_items.append({
+        uploaded_file.seek(0)
+        items = [{
             "Knowledge": f"Video File: {file_name}",
             "Type": "systems",
             "Confidence": 1.0,
@@ -266,44 +342,12 @@ def extract_knowledge_from_video(uploaded_file, file_name):
             "Description": f"Video file with size {file_size/1024/1024:.1f} MB",
             "Source": file_name,
             "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-        
-        # Infer content type from filename
-        if any(keyword in file_name.lower() for keyword in ['training', 'tutorial', 'demo']):
-            knowledge_items.append({
-                "Knowledge": "Training Content",
-                "Type": "processes",
-                "Confidence": 0.7,
-                "Category": "Educational Content",
-                "Description": "Video appears to contain training or educational material",
-                "Source": file_name,
-                "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-        
-        if any(keyword in file_name.lower() for keyword in ['meeting', 'conference', 'presentation']):
-            knowledge_items.append({
-                "Knowledge": "Business Meeting",
-                "Type": "processes",
-                "Confidence": 0.75,
-                "Category": "Business Process",
-                "Description": "Video appears to be a business meeting or presentation",
-                "Source": file_name,
-                "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-        
-        # Note about advanced processing
-        knowledge_items.append({
-            "Knowledge": "Video Analysis Available",
-            "Type": "concepts",
-            "Confidence": 0.9,
-            "Category": "Processing Capability",
-            "Description": "Advanced video analysis with scene detection and frame extraction available",
-            "Source": file_name,
-            "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-        
-        return knowledge_items
-        
+        }]
+        # Attempt unified transcript and rules
+        text = get_text_from_file(uploaded_file, 'video/*')
+        if text:
+            items.extend(extract_structured_knowledge(text, f"{file_name} (Transcript)"))
+        return items
     except Exception as e:
         return [{
             "Knowledge": f"Video Processing Error: {str(e)}",
@@ -315,17 +359,13 @@ def extract_knowledge_from_video(uploaded_file, file_name):
             "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }]
 
+
 def extract_knowledge_from_audio(uploaded_file, file_name):
-    """Extract knowledge from audio files"""
+    """Extract knowledge from audio files (metadata + transcript via unified path)."""
     try:
-        # Get file size and basic info
         file_size = len(uploaded_file.read())
-        uploaded_file.seek(0)  # Reset file pointer
-        
-        knowledge_items = []
-        
-        # Basic audio metadata
-        knowledge_items.append({
+        uploaded_file.seek(0)
+        items = [{
             "Knowledge": f"Audio File: {file_name}",
             "Type": "systems",
             "Confidence": 1.0,
@@ -333,44 +373,11 @@ def extract_knowledge_from_audio(uploaded_file, file_name):
             "Description": f"Audio file with size {file_size/1024/1024:.1f} MB",
             "Source": file_name,
             "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-        
-        # Infer content type from filename
-        if any(keyword in file_name.lower() for keyword in ['meeting', 'interview', 'call']):
-            knowledge_items.append({
-                "Knowledge": "Business Communication",
-                "Type": "processes",
-                "Confidence": 0.8,
-                "Category": "Communication",
-                "Description": "Audio appears to contain business communication or meeting",
-                "Source": file_name,
-                "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-        
-        if any(keyword in file_name.lower() for keyword in ['training', 'lecture', 'presentation']):
-            knowledge_items.append({
-                "Knowledge": "Educational Content",
-                "Type": "concepts",
-                "Confidence": 0.75,
-                "Category": "Learning Material",
-                "Description": "Audio appears to contain educational or training content",
-                "Source": file_name,
-                "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-        
-        # Note about transcription capability
-        knowledge_items.append({
-            "Knowledge": "Speech-to-Text Available",
-            "Type": "concepts",
-            "Confidence": 0.9,
-            "Category": "Processing Capability",
-            "Description": "Audio transcription with Whisper AI available for text extraction",
-            "Source": file_name,
-            "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-        
-        return knowledge_items
-        
+        }]
+        text = get_text_from_file(uploaded_file, 'audio/*')
+        if text:
+            items.extend(extract_structured_knowledge(text, f"{file_name} (Transcript)"))
+        return items
     except Exception as e:
         return [{
             "Knowledge": f"Audio Processing Error: {str(e)}",
@@ -381,102 +388,6 @@ def extract_knowledge_from_audio(uploaded_file, file_name):
             "Source": file_name,
             "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }]
-
-def extract_knowledge_from_text(text, source_name):
-    """Extract knowledge items from text content"""
-    import re
-    
-    knowledge_items = []
-    words = text.lower().split()
-    
-    # Extract processes (look for action words and procedures)
-    process_patterns = [
-        r'\b\w+ing\b',  # words ending in -ing
-        r'\bprocess\w*\b',
-        r'\bprocedure\w*\b',
-        r'\bmethod\w*\b',
-        r'\bstep\w*\b'
-    ]
-    
-    processes = set()
-    for pattern in process_patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        processes.update(matches[:3])  # Limit to 3
-    
-    for process in list(processes)[:3]:
-        knowledge_items.append({
-            "Knowledge": process.title(),
-            "Type": "processes",
-            "Confidence": round(0.75 + len(process) * 0.01, 2),
-            "Category": "Process",
-            "Description": f"Process identified in {source_name}",
-            "Source": source_name,
-            "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-    
-    # Extract requirements (look for obligation words)
-    requirement_indicators = ['must', 'shall', 'required', 'mandatory', 'essential']
-    for indicator in requirement_indicators:
-        if indicator in text.lower():
-            knowledge_items.append({
-                "Knowledge": f"{indicator.title()} Requirement",
-                "Type": "requirements",
-                "Confidence": 0.85,
-                "Category": "Requirement",
-                "Description": f"Requirement with '{indicator}' found in document",
-                "Source": source_name,
-                "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-    
-    # Extract systems (look for capitalized terms)
-    systems = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
-    unique_systems = list(set(systems))[:3]
-    
-    for system in unique_systems:
-        if len(system) > 3:  # Filter out short words
-            knowledge_items.append({
-                "Knowledge": system,
-                "Type": "systems",
-                "Confidence": 0.80,
-                "Category": "System",
-                "Description": f"System component identified in {source_name}",
-                "Source": source_name,
-                "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-    
-    # Extract risks (look for risk-related terms)
-    risk_terms = ['risk', 'hazard', 'danger', 'threat', 'vulnerability']
-    for term in risk_terms:
-        if term in text.lower():
-            knowledge_items.append({
-                "Knowledge": f"{term.title()} Factor",
-                "Type": "risks",
-                "Confidence": 0.75,
-                "Category": "Risk",
-                "Description": f"Risk factor containing '{term}' identified",
-                "Source": source_name,
-                "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-    
-    # Extract key concepts (most frequent meaningful words)
-    word_freq = {}
-    for word in words:
-        if len(word) > 4 and word.isalpha():
-            word_freq[word] = word_freq.get(word, 0) + 1
-    
-    top_concepts = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:2]
-    for word, freq in top_concepts:
-        knowledge_items.append({
-            "Knowledge": word.title(),
-            "Type": "concepts",
-            "Confidence": min(0.90, 0.60 + freq * 0.02),
-            "Category": "Concept",
-            "Description": f"Key concept mentioned {freq} times",
-            "Source": source_name,
-            "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-    
-    return knowledge_items
 
 def get_demo_data():
     """Get demo knowledge data"""
