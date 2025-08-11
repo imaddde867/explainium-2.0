@@ -1,4 +1,5 @@
 numpy
+psutil
 opencv-python
 Pillow
 pandas
