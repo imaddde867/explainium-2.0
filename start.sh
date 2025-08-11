@@ -11,8 +11,20 @@ echo "=================================================================="
 echo -e "${BLUE}EXPLAINIUM - Starting Application${NC}"
 echo "=================================================================="
 
-# Activate virtual environment
-source venv/bin/activate
+# Activate virtual environment (robust)
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+else
+    echo -e "${BLUE}Warning:${NC} No virtualenv found (.venv/ or venv/). Continuing without activation."
+fi
+
+# Safe defaults to avoid native LLM crashes
+export EXPLAINIUM_DISABLE_LOCAL_LLM=${EXPLAINIUM_DISABLE_LOCAL_LLM:-1}
+export EXPLAINIUM_LIGHTWEIGHT_FRONTEND=${EXPLAINIUM_LIGHTWEIGHT_FRONTEND:-1}
+# Ensure user-level scripts are on PATH (for uvicorn/streamlit installed with pip --user)
+export PATH="$HOME/.local/bin:$PATH"
 
 # Function to start backend
 start_backend() {

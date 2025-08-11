@@ -28,6 +28,12 @@ try:
     LLAMA_AVAILABLE = True
 except ImportError:
     LLAMA_AVAILABLE = False
+
+import os
+
+# Allow runtime override to disable local LLM entirely
+if os.environ.get("EXPLAINIUM_DISABLE_LOCAL_LLM") == "1":
+    LLAMA_AVAILABLE = False
     Llama = None
 
 # Internal imports
@@ -225,8 +231,11 @@ class DocumentIntelligenceAnalyzer:
                 if LLAMA_AVAILABLE:
                     self.llm = Llama(
                         model_path=self.config.local_model_path,
-                        n_ctx=4096,
+                        n_ctx=512,
                         n_threads=4,
+                        n_gpu_layers=0,
+                        use_mmap=True,
+                        use_mlock=False,
                         verbose=False
                     )
             

@@ -27,6 +27,7 @@ import re
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import time
+import os
 
 # Import LLM backends
 try:
@@ -35,6 +36,10 @@ try:
 except ImportError:
     LLAMA_AVAILABLE = False
     Llama = None
+
+# Allow runtime override to disable local LLM entirely (e.g., to prevent native crashes)
+if os.environ.get("EXPLAINIUM_DISABLE_LOCAL_LLM") == "1":
+    LLAMA_AVAILABLE = False
 
 from src.logging_config import get_logger
 from src.core.config import AIConfig
@@ -232,8 +237,10 @@ class OptimizedLLMProcessingEngine:
                         model_path=str(model_path),
                         n_ctx=1024,
                         n_batch=64,
-                        n_threads=6,
+                        n_threads=4,
                         n_gpu_layers=0,
+                        use_mmap=True,
+                        use_mlock=False,
                         verbose=False
                     )
                     logger.info(f"✅ LLM model initialized from {model_path}")
@@ -243,9 +250,11 @@ class OptimizedLLMProcessingEngine:
                     self.llm_model = Llama(
                         model_path=str(model_path),
                         n_ctx=512,
-                        n_batch=32,
+                        n_batch=16,
                         n_threads=4,
                         n_gpu_layers=0,
+                        use_mmap=True,
+                        use_mlock=False,
                         verbose=False
                     )
                     logger.info(f"✅ LLM model initialized (low-memory mode) from {model_path}")
@@ -364,18 +373,22 @@ class OptimizedLLMProcessingEngine:
                                         metadata: Dict[str, Any]) -> str:
         """Fast processing method determination with video content support"""
         
-        # Special handling for video content
+        # Special handling for video/image content
         content_type = metadata.get('content_type', '')
         file_type = metadata.get('file_type', '')
         
-        if content_type == 'video_content' or file_type in ('video', 'image'):
-            # Prefer LLM for video and image transcripts when available
+        # For images, avoid LLM to prevent native engine crashes; use enhanced patterns instead
+        if file_type == 'image':
+            logger.info("Using enhanced patterns for image content (LLM disabled for images)")
+            return "enhanced_patterns"
+        
+        # Prefer LLM for video transcripts when available
+        if content_type == 'video_content' or file_type == 'video':
             if self.llm_model is not None:
-                logger.info("Using LLM processing for media content")
+                logger.info("Using LLM processing for video content")
                 return "llm_chunked"
             else:
-                # Enhanced patterns if LLM unavailable
-                logger.info("Using enhanced patterns for media content (LLM unavailable)")
+                logger.info("Using enhanced patterns for video content (LLM unavailable)")
                 return "enhanced_patterns"
         
         # Rule 1: Fast patterns for simple content
@@ -469,6 +482,11 @@ class OptimizedLLMProcessingEngine:
                 all_entities.extend(result)
             elif isinstance(result, Exception):
                 logger.warning(f"Chunk processing error: {result}")
+        
+        # If LLM produced no entities, fall back to enhanced patterns
+        if not all_entities:
+            logger.info("LLM produced no entities; falling back to enhanced patterns")
+            return await self._execute_enhanced_patterns(content, document_type)
         
         return all_entities
     

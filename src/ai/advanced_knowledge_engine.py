@@ -13,6 +13,7 @@ from pathlib import Path
 import json
 import hashlib
 from datetime import datetime
+import os
 
 # Core AI libraries
 import torch
@@ -27,6 +28,10 @@ try:
 except ImportError:
     LLAMA_AVAILABLE = False
     Llama = None
+
+# Allow runtime override to disable local LLM entirely
+if os.environ.get("EXPLAINIUM_DISABLE_LOCAL_LLM") == "1":
+    LLAMA_AVAILABLE = False
 
 try:
     import mlx.core as mx
@@ -174,12 +179,15 @@ class ModelManager:
                 if not Path(model_path).exists():
                     raise FileNotFoundError(f"Model not found: {model_path}")
                 
+                # Safer, CPU-friendly defaults to avoid native crashes in constrained envs
                 model = Llama(
                     model_path=model_path,
-                    n_gpu_layers=-1,  # Use Apple Metal
-                    n_ctx=4096,
-                    n_batch=512,
-                    n_threads=8,  # Optimized for M4
+                    n_gpu_layers=0,
+                    n_ctx=1024,
+                    n_batch=64,
+                    n_threads=4,
+                    use_mmap=True,
+                    use_mlock=False,
                     verbose=False
                 )
                 

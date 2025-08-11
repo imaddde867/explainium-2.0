@@ -19,6 +19,8 @@ import os
 AI_AVAILABLE = False
 import_error_msg = ""
 
+LIGHTWEIGHT_MODE = os.environ.get("EXPLAINIUM_LIGHTWEIGHT_FRONTEND") == "1"
+
 # Add current working directory and src to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
@@ -143,14 +145,17 @@ def process_with_intelligent_ai_engine(uploaded_file, file_name, file_type):
         if file_type == "application/pdf":
             content = extract_pdf_content(uploaded_file)
         elif file_type.startswith("image/"):
-            # Use OCR for images
+            # In lightweight mode or image files, avoid initializing heavy local engines
             try:
                 import pytesseract
                 from PIL import Image
                 image = Image.open(uploaded_file)
                 content = pytesseract.image_to_string(image)
-            except:
+            except Exception:
                 content = f"Image file: {file_name}"
+            if LIGHTWEIGHT_MODE:
+                # Directly use intelligent text analysis without heavy engine
+                return extract_intelligent_knowledge(content, file_name)
         elif file_type == "text/plain":
             content = str(uploaded_file.read(), "utf-8")
         else:
@@ -166,7 +171,7 @@ def process_with_intelligent_ai_engine(uploaded_file, file_name, file_type):
 
             # Lazy-init the heavy processor once per session with a spinner
             processor = getattr(st.session_state, 'document_processor', None)
-            if processor is None:
+            if processor is None and not LIGHTWEIGHT_MODE and not file_type.startswith("image/"):
                 with st.spinner("Initializing local AI models (first use may take up to a minute)..."):
                     processor = OptimizedDocumentProcessor()
                     try:
@@ -174,6 +179,13 @@ def process_with_intelligent_ai_engine(uploaded_file, file_name, file_type):
                     except Exception:
                         pass
                     st.session_state.document_processor = processor
+
+            # If we are in lightweight mode or processing images, skip heavy processor
+            if LIGHTWEIGHT_MODE or file_type.startswith("image/") or processor is None:
+                if content and len(content.strip()) > 50:
+                    return extract_intelligent_knowledge(content, file_name)
+                else:
+                    return None
 
             # Save the file temporarily for processing
             file_extension = Path(file_name).suffix or '.txt'
