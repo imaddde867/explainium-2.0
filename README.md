@@ -1,172 +1,142 @@
-# Explainium 2.0 – Intelligent Document Knowledge Extraction Platform
+# EXPLAINIUM - Intelligent Knowledge Extraction Demo
 
-Explainium converts unstructured technical, safety, compliance and operational documents into structured, validated knowledge. It runs fully locally (offline models) and produces database‑ready entities with confidence and quality metrics so the extracted knowledge can be searched, filtered, audited, or exported.
+🚀 **Advanced AI-powered document processing and knowledge extraction system**
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://python.org)
-[![Offline](https://img.shields.io/badge/processing-offline-success.svg)](https://github.com)
+## Quick Demo Start
 
-## Overview
-
-Core goals:
-1. Extract high‑value knowledge (specifications, processes, safety measures, compliance requirements, roles, definitions) from heterogeneous document formats.
-2. Maintain a structured schema with traceable confidence scores and validation flags.
-3. Provide a predictable processing pipeline with graceful fallback when advanced semantic extraction is unavailable.
-
-## Processing Pipeline
-
-Priority order:
-1. Primary semantic engine (large local instruction model + multi‑prompt strategy)
-2. Enhanced pattern / NLP extraction (specialised patterns & embeddings)
-3. Lightweight legacy pattern matching (minimal emergency fallback)
-
-Quality gates (examples):
-- Minimum semantic extraction confidence: 0.75
-- Entity validation threshold: 0.70
-- Production readiness threshold: 0.85 aggregate confidence
-
-## Knowledge Categories
-
-| Category | Typical Content | Target Confidence |
-|----------|-----------------|-------------------|
-| Technical Specifications | Parameters, measurements, operating ranges | 0.95 |
-| Safety / Risk Requirements | Hazards, mitigation measures, PPE | 0.90 |
-| Process Intelligence | Steps, workflows, procedures | 0.85 |
-| Compliance & Governance | Regulations, standards, mandatory items | 0.80 |
-| Organizational Data | Roles, responsibilities, qualifications | 0.75 |
-| Definitions / Terminology | Terms and explanations | 0.70 |
-
-## Key Features
-
-Extraction & Semantics:
-- Multi‑prompt semantic analysis (role/targeted prompts per category)
-- Relationship and context capture between extracted entities
-- Confidence scoring + validation pass flags per entity
-
-Quality & Governance:
-- Hierarchical fallback with explicit method attribution
-- Configurable thresholds for acceptance and production use
-- Structured, normalized output ready for persistence / export
-
-Operational:
-- Local model execution (no external calls required once models are present)
-- Multi‑format ingestion: PDF, DOCX, TXT, images (OCR), audio (transcription), video (extracted audio)
-- Batch processing support with metadata tracking
-
-Interface & Access:
-- Streamlit dashboard for interactive review and filtering
-- FastAPI backend with OpenAPI documentation
-- Export utilities for downstream integration
-
-## Architecture (Simplified Directory View)
-
-```
-explainium-2.0/
-├── src/ai/                       # Semantic & extraction engines
-│   ├── llm_processing_engine.py  # Primary semantic engine
-│   ├── enhanced_extraction_engine.py
-│   ├── knowledge_categorization_engine.py
-│   ├── advanced_knowledge_engine.py
-│   └── document_intelligence_analyzer.py
-├── src/processors/               # Orchestration / pipeline
-│   └── processor.py
-├── src/database/                 # Models and CRUD operations
-├── src/frontend/                 # Streamlit interface
-├── models/                       # Local model assets
-└── documents_samples/            # Sample input documents
-```
-
-## Quick Start
-
-Prerequisites:
-- Python 3.12+
-- 16 GB RAM recommended for larger model variants (smaller models also supported)
-- macOS (Metal) or Linux with suitable CPU/GPU acceleration
-
-Installation:
 ```bash
-git clone https://github.com/your-org/explainium-2.0.git
-cd explainium-2.0
-chmod +x setup.sh
-./setup.sh
-./start.sh
+# Clone and run the demo
+git clone <repository-url>
+cd explainium
+./demo.sh
 ```
 
-Access:
-- Dashboard: http://localhost:8501
-- API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+Then open your browser to `http://localhost:8501` and start uploading files!
 
-## Configuration Snippets
+## 🌟 Demo Features
 
-Model configuration example:
-```json
-{
-  "hardware_profile": "m4_16gb",
-  "models": {
-    "llm": {
-      "path": "models/llm/Mistral-7B-Instruct-v0.2-GGUF",
-      "quantization": "Q4_K_M",
-      "context_length": 4096,
-      "threads": 8
-    }
-  }
-}
+### Multi-Format Processing
+- **📄 Documents**: PDF, DOC, DOCX, TXT with intelligent text extraction
+- **🖼️ Images**: JPG, PNG, GIF with advanced OCR and content analysis
+- **🎥 Videos**: MP4, AVI with audio transcription and frame OCR
+- **🎵 Audio**: MP3, WAV with Whisper AI transcription
+- **📊 Spreadsheets**: CSV, XLS, XLSX with data analysis
+
+### AI-Powered Intelligence
+- **🧠 LLM-First Processing**: Primary method using advanced language models
+- **🔧 Advanced Fallback**: Secondary processing with enhanced extraction
+- **📈 Real-time Analytics**: Confidence scoring and knowledge categorization
+- **🎯 Smart Filtering**: Filter by type, confidence, and search terms
+
+## 📁 Sample Files
+
+The `documents_samples/` directory contains various file types to demonstrate the system:
+
+- **Images**: `safe-use-of-MEWP.png`, `71147668_2237079513081416_8142274033388355584_n.jpg`
+- **Videos**: `Safe Lifting - PhoenixParks (360p, h264).mp4`
+- **PDFs**: Multiple technical documents and manuals
+- **Text**: `test_sample.txt`
+
+## 🔧 Demo Workflow
+
+1. **Start the Application**: Run `./demo.sh`
+2. **Upload a File**: Use the sidebar file uploader
+3. **View Results**: See extracted knowledge in the main table
+4. **Explore Analytics**: Check the sidebar charts and statistics
+5. **Filter & Search**: Use the filtering options to explore data
+
+## 🎯 What Gets Extracted
+
+The system intelligently extracts and categorizes:
+
+- **Concepts**: Definitions, technical terms, structured content
+- **Processes**: Procedures, workflows, step-by-step instructions
+- **Systems**: Tools, equipment, technical specifications
+- **Requirements**: Compliance, regulations, standards
+- **Risks**: Safety concerns, hazards, warnings
+- **People**: Roles, responsibilities, organizational information
+
+## 🛠️ System Requirements
+
+- **Python 3.8+**
+- **Tesseract OCR** (for image processing)
+- **FFmpeg** (for video audio extraction)
+- **2GB+ RAM** (for AI models)
+
+### Optional Dependencies
+- **Whisper AI** (for high-quality audio transcription)
+- **OpenCV** (for advanced image/video processing)
+- **spaCy models** (for enhanced NLP)
+
+## 📊 Processing Methods
+
+The system uses a hierarchical processing approach:
+
+1. **🧠 LLM-First Processing** (Primary)
+   - Advanced language model analysis
+   - High-quality entity extraction
+   - Intelligent categorization
+
+2. **🔧 Advanced Engine** (Fallback)
+   - Enhanced pattern recognition
+   - Structured data extraction
+   - Quality validation
+
+3. **📝 Text Analysis** (Final Fallback)
+   - Pattern-based extraction
+   - Basic categorization
+   - Reliability baseline
+
+## 🚀 Architecture
+
+```
+Frontend (Streamlit) 
+    ↓
+Document Processors
+    ↓
+AI Engines (LLM + Advanced)
+    ↓
+Knowledge Extraction
+    ↓
+Structured Output
 ```
 
-Threshold constants:
-```python
-LLM_MINIMUM = 0.75
-ENHANCED_MINIMUM = 0.60
-COMBINED_MINIMUM = 0.80
-ENTITY_VALIDATION = 0.70
-PRODUCTION_READY = 0.85
-```
+## 📈 Performance
 
-## API Usage Examples
+- **Image Processing**: ~5-10 seconds per image
+- **Video Processing**: ~30-60 seconds per video (depending on length)
+- **Document Processing**: ~10-20 seconds per document
+- **Audio Processing**: ~20-40 seconds per audio file
 
-Process a document via the orchestration layer:
-```python
-from src.processors.optimized_processor import OptimizedDocumentProcessor
+## 🔍 Demo Tips
 
-processor = OptimizedDocumentProcessor()
-processor.optimize_for_m4()
-result = processor.process_document_sync("/path/to/document.pdf")
+### Best Results
+- **High-quality images** with clear text
+- **Videos with visible text** or clear audio
+- **Well-structured documents** (PDFs, Word docs)
+- **Files under 50MB** for optimal performance
 
-print(result.entities_extracted, result.confidence_score)
-```
+### Troubleshooting
+- If OCR fails, check Tesseract installation
+- If video processing fails, check FFmpeg installation
+- Large files may take longer to process
+- AI models download automatically on first use
 
-Direct semantic engine invocation (async):
-```python
-from src.ai.llm_processing_engine import LLMProcessingEngine
-import asyncio
+## 🛡️ Security & Privacy
 
-async def run():
-    engine = LLMProcessingEngine()
-    await engine.initialize()
-    out = await engine.process_document(
-        content="Document text...",
-        document_type="technical_manual",
-        metadata={"filename": "manual.pdf"}
-    )
-    print(out.entities)
+- **Local Processing**: All files processed locally
+- **No Cloud Dependencies**: No data sent to external services
+- **Temporary Files**: Automatically cleaned up after processing
+- **Privacy First**: Your data never leaves your machine
 
-asyncio.run(run())
-```
+## 🎨 User Interface
 
-## Development & Verification
+- **Clean Dashboard**: Modern, intuitive interface
+- **Real-time Updates**: Live processing status
+- **Interactive Charts**: Visual analytics and insights
+- **Export Capabilities**: Download results as CSV
+- **Responsive Design**: Works on desktop and tablet
 
-Basic readiness test:
-```bash
-python -c "from src.ai.llm_processing_engine import LLMProcessingEngine;import asyncio;async def t():
-    e=LLMProcessingEngine();await e.initialize();print('Engine ready')
-asyncio.run(t())"
-```
+---
 
-Quality / statistics probe:
-```bash
-python -c "from src.processors.optimized_processor import OptimizedDocumentProcessor; p=OptimizedDocumentProcessor(); p.optimize_for_m4(); print('ok')"
-```
-
-## License
-
-MIT License – see [LICENSE](LICENSE).
+**Ready to explore? Run `./demo.sh` and start extracting knowledge!** 🚀

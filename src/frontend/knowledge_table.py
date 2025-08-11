@@ -528,21 +528,22 @@ def extract_knowledge_from_image(uploaded_file, file_name):
         try:
             import pytesseract
             text = pytesseract.image_to_string(image)
-            if text.strip() and len(text.strip()) > 20:
-                # Use intelligent extraction on OCR text
-                text_knowledge = extract_intelligent_knowledge(text.strip(), f"{file_name} (OCR)")
+            if text.strip() and len(text.strip()) > 5:
+                # Use intelligent extraction on OCR text to get actual knowledge
+                text_knowledge = extract_intelligent_knowledge(text.strip(), f"{file_name}")
                 knowledge_items.extend(text_knowledge)
                 
-                # Add OCR success indicator
-                knowledge_items.append({
-                    "Knowledge": "Text Recognition Success",
-                    "Type": "systems",
-                    "Confidence": 0.85,
-                    "Category": "OCR Processing",
-                    "Description": f"Successfully extracted {len(text.strip())} characters of text from image using OCR",
-                    "Source": file_name,
-                    "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
+                # If no structured knowledge was extracted but we have text, add the raw text as content
+                if not text_knowledge and len(text.strip()) > 20:
+                    knowledge_items.append({
+                        "Knowledge": "Extracted Text Content",
+                        "Type": "concepts",
+                        "Confidence": 0.80,
+                        "Category": "Text Content",
+                        "Description": text.strip()[:500] + ("..." if len(text.strip()) > 500 else ""),
+                        "Source": file_name,
+                        "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
             else:
                 # No meaningful text found
                 knowledge_items.append({
@@ -550,7 +551,7 @@ def extract_knowledge_from_image(uploaded_file, file_name):
                     "Type": "concepts",
                     "Confidence": 0.75,
                     "Category": "Visual Content",
-                    "Description": f"Image file ({width}x{height}, {mode} mode) with minimal text content",
+                    "Description": f"Image file ({width}x{height}, {mode} mode) with minimal extractable text content",
                     "Source": file_name,
                     "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
@@ -623,16 +624,88 @@ def extract_knowledge_from_video(uploaded_file, file_name):
             tmp.write(raw_bytes)
             temp_path = tmp.name
 
-        # Lazy import to avoid heavy deps on app boot
-        from src.processors.optimized_processor import OptimizedDocumentProcessor
-        dp = OptimizedDocumentProcessor()
+        # Multi-tiered video processing approach for maximum compatibility
+        transcript_text = ""
+        frames_analyzed = 0
+        source = ""
+        warning = ""
+        
+        # Tier 1: Try full DocumentProcessor with all features
         try:
-            dp.optimize_for_m4()
-        except Exception:
-            pass
-
-        # Run improved video processing (audio + frame OCR fallback)
-        result = dp._process_video_document(Path(temp_path))
+            from src.processors.processor import DocumentProcessor
+            dp = DocumentProcessor()
+            result = dp._process_video_document(Path(temp_path))
+            transcript_text = (result.get('text') or '').strip()
+            frames_analyzed = result.get('video_analysis', {}).get('frames_analyzed', 0)
+            source = ', '.join(result.get('sources', []))
+            if not transcript_text:
+                warning = "Full processor available but no content extracted"
+        except Exception as e:
+            warning = f"Full processor failed: {str(e)[:100]}"
+            
+            # Tier 2: Try optimized processor
+            try:
+                from src.processors.optimized_processor import OptimizedDocumentProcessor
+                dp = OptimizedDocumentProcessor()
+                try:
+                    dp.optimize_for_m4()
+                except Exception:
+                    pass
+                result = dp._process_video_document(Path(temp_path))
+                transcript_text = (result.get('text') or '').strip()
+                frames_analyzed = result.get('frames_analyzed', 0)
+                source = "optimized_processor"
+                if not transcript_text:
+                    warning = "Optimized processor available but no content extracted"
+            except Exception as e2:
+                warning = f"All processors failed: {str(e2)[:100]}"
+                
+                # Tier 3: Basic OCR fallback using direct CV2 and tesseract
+                try:
+                    import cv2
+                    import pytesseract
+                    cap = cv2.VideoCapture(temp_path)
+                    
+                    if cap.isOpened():
+                        texts = []
+                        frame_count = 0
+                        max_frames = 5  # Sample just a few frames
+                        
+                        fps = cap.get(cv2.CAP_PROP_FPS) or 1.0
+                        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+                        
+                        # Sample frames at intervals
+                        for i in range(0, min(total_frames, max_frames * int(fps * 10)), max(1, int(fps * 10))):
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+                            ret, frame = cap.read()
+                            if ret:
+                                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                                text = pytesseract.image_to_string(gray)
+                                if text.strip():
+                                    texts.append(text.strip())
+                                frame_count += 1
+                        
+                        cap.release()
+                        
+                        if texts:
+                            transcript_text = '\n'.join(texts)
+                            frames_analyzed = frame_count
+                            source = "basic_ocr_fallback"
+                        else:
+                            frames_analyzed = frame_count
+                            source = "basic_ocr_no_text"
+                            
+                except Exception as e3:
+                    warning = f"Even basic OCR failed: {str(e3)[:100]}"
+                    source = "all_methods_failed"
+        
+        # Package result in expected format
+        result = {
+            'text': transcript_text,
+            'frames_analyzed': frames_analyzed,
+            'source': source,
+            'warning': warning
+        }
         transcript_text = (result.get('text') or '').strip()
         frames_analyzed = result.get('frames_analyzed')
         source = result.get('source')
@@ -669,12 +742,31 @@ def extract_knowledge_from_video(uploaded_file, file_name):
 
         # If nothing else was extracted, provide a clear minimal item instead of being empty
         if not transcript_text and len(knowledge_items) == 1:
+            # Try to extract basic information from filename for better context
+            filename_lower = file_name.lower()
+            content_type = "Video Content"
+            description = "No extractable audio or on-screen text detected"
+            
+            # Improve description based on filename patterns
+            if any(word in filename_lower for word in ['training', 'tutorial', 'guide', 'instruction']):
+                content_type = "Training Video"
+                description = "Training or instructional video with no extractable text/audio content"
+            elif any(word in filename_lower for word in ['meeting', 'conference', 'call']):
+                content_type = "Meeting Recording"
+                description = "Meeting or conference recording with no extractable text/audio content"
+            elif any(word in filename_lower for word in ['presentation', 'demo', 'overview']):
+                content_type = "Presentation Video"
+                description = "Presentation or demo video with no extractable text/audio content"
+            elif any(word in filename_lower for word in ['safety', 'procedure', 'process']):
+                content_type = "Procedural Video"
+                description = "Safety or procedural video with no extractable text/audio content"
+            
             knowledge_items.insert(0, {
-                "Knowledge": "Video Content",
+                "Knowledge": content_type,
                 "Type": "concepts",
                 "Confidence": 0.7,
                 "Category": "Media Content",
-                "Description": "No extractable audio or on-screen text detected",
+                "Description": description,
                 "Source": file_name,
                 "Extracted_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
