@@ -74,24 +74,43 @@ fi
 
 # Step 1: Create virtual environment
 log_info "Creating Python virtual environment..."
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
-    log_success "Virtual environment created"
-else
-    log_info "Virtual environment already exists"
+if [ ! -d ".venv" ] && [ ! -d "venv" ]; then
+    if ! python3 -m venv .venv 2>/dev/null; then
+        log_warning "python3-venv not available. On Debian/Ubuntu, run: sudo apt install python3-venv"
+        log_warning "Proceeding without virtualenv; installing packages user-wide"
+        USE_USER=1
+    else
+        log_success "Virtual environment (.venv) created"
+    fi
 fi
 
-# Activate virtual environment
-source venv/bin/activate
+# Activate virtual environment (prefer .venv)
+if [ -z "${USE_USER:-}" ]; then
+    if [ -f .venv/bin/activate ]; then
+        source .venv/bin/activate
+    elif [ -f venv/bin/activate ]; then
+        source venv/bin/activate
+    fi
+fi
 log_success "Virtual environment activated"
 
 # Step 2: Upgrade pip and install dependencies
 log_info "Installing Python dependencies..."
-pip install --upgrade pip setuptools wheel
+if [ -n "${USE_USER:-}" ]; then
+    pip3 install --user --upgrade pip setuptools wheel
+else
+    pip install --upgrade pip setuptools wheel
+fi
 
 # Install requirements
 if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
+    if [ -n "${USE_USER:-}" ]; then
+        pip3 install --user -r requirements.txt
+        pip3 install --user uvicorn streamlit
+    else
+        pip install -r requirements.txt
+        pip install uvicorn streamlit
+    fi
     log_success "Dependencies installed successfully"
 else
     log_error "requirements.txt not found"

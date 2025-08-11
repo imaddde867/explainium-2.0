@@ -11,8 +11,26 @@ echo "=================================================================="
 echo -e "${BLUE}EXPLAINIUM - Starting Application${NC}"
 echo "=================================================================="
 
-# Activate virtual environment
-source venv/bin/activate
+# Move to repo root (directory of this script)
+cd "$(dirname "$0")" || exit 1
+
+# Activate virtual environment (support .venv or venv)
+if [ -f .venv/bin/activate ]; then
+  source .venv/bin/activate
+elif [ -f venv/bin/activate ]; then
+  source venv/bin/activate
+else
+  echo -e "${BLUE}No virtual environment found (.venv/venv). Continuing with system Python...${NC}"
+fi
+
+# Environment safeguards for local LLM stability
+# Disable llama.cpp by default on Linux unless explicitly enabled
+UNAME_S=$(uname -s)
+if [ "$UNAME_S" = "Linux" ]; then
+  export EXPLAINIUM_DISABLE_LLM=${EXPLAINIUM_DISABLE_LLM:-true}
+fi
+# Do not use LLM for media (video/image) by default; can be enabled by setting EXPLAINIUM_LLM_MEDIA=true
+export EXPLAINIUM_LLM_MEDIA=${EXPLAINIUM_LLM_MEDIA:-false}
 
 # Function to start backend
 start_backend() {
@@ -25,8 +43,6 @@ start_backend() {
 # Function to start frontend
 start_frontend() {
     echo -e "${GREEN}Starting Frontend Dashboard...${NC}"
-    # Ensure we're in the project root directory
-    cd "$(dirname "$0")"
     streamlit run src/frontend/knowledge_table.py --server.port 8501 --server.address localhost &
     FRONTEND_PID=$!
     echo "Frontend PID: $FRONTEND_PID"

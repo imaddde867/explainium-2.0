@@ -215,9 +215,17 @@ def process_with_intelligent_ai_engine(uploaded_file, file_name, file_type):
                 return extract_intelligent_knowledge(content, file_name)
             else:
                 return None
-            
+        
     except Exception as e:
-        print(f"AI engine processing failed: {e}")
+        # Ensure UI remains responsive even if backend crashed or connection hiccup
+        st.warning(f"AI engine temporarily unavailable; using fast text/ocr extraction. Details: {e}")
+        try:
+            if file_type.startswith("image/"):
+                return extract_knowledge_from_image(uploaded_file, file_name)
+            elif file_type.startswith("video/"):
+                return extract_knowledge_from_video(uploaded_file, file_name)
+        except Exception:
+            pass
         return None
 
 def process_with_ai_engine(uploaded_file, file_name, file_type):

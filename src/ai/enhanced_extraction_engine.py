@@ -62,6 +62,10 @@ class OptimizedEnhancedExtractionEngine:
                 print("⚠️ spaCy model not found. Some features may be limited.")
                 self.nlp = None
                 self.nlp_loaded = True
+            except Exception as e:
+                print(f"⚠️ spaCy load issue ({e}). Continuing without NLP enhancements.")
+                self.nlp = None
+                self.nlp_loaded = True
     
     def extract_comprehensive_knowledge(self, content: str, document_type: str = "unknown") -> List[ExtractedEntity]:
         """OPTIMIZED comprehensive knowledge extraction"""

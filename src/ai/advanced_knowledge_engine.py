@@ -27,6 +27,8 @@ try:
 except ImportError:
     LLAMA_AVAILABLE = False
     Llama = None
+import os
+import platform
 
 try:
     import mlx.core as mx
@@ -170,29 +172,33 @@ class ModelManager:
         
         try:
             if model_name == "mistral-7b" and LLAMA_AVAILABLE:
+                # Allow env to disable LLM
+                if os.getenv("EXPLAINIUM_DISABLE_LLM", "false").lower() in ("1", "true", "yes"):
+                    raise RuntimeError("LLM disabled by environment")
                 model_path = f"{self.config.llm_path}/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
                 if not Path(model_path).exists():
                     raise FileNotFoundError(f"Model not found: {model_path}")
                 
+                is_macos = platform.system() == "Darwin"
                 model = Llama(
                     model_path=model_path,
-                    n_gpu_layers=-1,  # Use Apple Metal
-                    n_ctx=4096,
-                    n_batch=512,
-                    n_threads=8,  # Optimized for M4
+                    n_gpu_layers=(0 if not is_macos else 0),  # avoid Metal default; keep CPU
+                    n_ctx=1024 if is_macos else 512,
+                    n_batch=64 if is_macos else 16,
+                    n_threads=8 if is_macos else max(2, min(4, os.cpu_count() or 4)),
                     verbose=False
                 )
                 
                 self.model_cache[cache_key] = model
                 logger.info(f"Loaded quantized Mistral model: {model_name}")
                 return model
-                
+            
             elif model_name == "phi-2":
                 # Load Microsoft Phi-2 model
                 model = self._load_phi_model()
                 self.model_cache[cache_key] = model
                 return model
-                
+            
             else:
                 raise ValueError(f"Unsupported model: {model_name}")
                 
@@ -710,13 +716,20 @@ class AdvancedKnowledgeEngine:
             """
             
             if isinstance(self.llm, Llama):
-                response = self.llm(
-                    prompt,
-                    max_tokens=2048,
-                    temperature=0.1,
-                    stop=["</s>", "\n\n"]
-                )
-                result_text = response['choices'][0]['text']
+                try:
+                    if hasattr(self.llm, "create_completion"):
+                        response = self.llm.create_completion(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                    elif hasattr(self.llm, "create_chat_completion"):
+                        response = self.llm.create_chat_completion(messages=[{"role": "user", "content": prompt}], max_tokens=2048, temperature=0.1)
+                        choice = response.get('choices', [{}])[0]
+                        result_text = choice.get('message', {}).get('content', choice.get('text', ''))
+                    else:
+                        response = self.llm(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                except Exception as e:
+                    logger.error(f"LLM completion failed: {e}")
+                    result_text = "{}"
             else:
                 # Fallback for other model types
                 result_text = "{}"
@@ -766,13 +779,20 @@ class AdvancedKnowledgeEngine:
             """
             
             if isinstance(self.llm, Llama):
-                response = self.llm(
-                    prompt,
-                    max_tokens=2048,
-                    temperature=0.1,
-                    stop=["</s>", "\n\n"]
-                )
-                result_text = response['choices'][0]['text']
+                try:
+                    if hasattr(self.llm, "create_completion"):
+                        response = self.llm.create_completion(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                    elif hasattr(self.llm, "create_chat_completion"):
+                        response = self.llm.create_chat_completion(messages=[{"role": "user", "content": prompt}], max_tokens=2048, temperature=0.1)
+                        choice = response.get('choices', [{}])[0]
+                        result_text = choice.get('message', {}).get('content', choice.get('text', ''))
+                    else:
+                        response = self.llm(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                except Exception as e:
+                    logger.error(f"LLM completion failed: {e}")
+                    result_text = "{}"
             else:
                 result_text = "{}"
             
@@ -817,13 +837,20 @@ class AdvancedKnowledgeEngine:
             """
             
             if isinstance(self.llm, Llama):
-                response = self.llm(
-                    prompt,
-                    max_tokens=2048,
-                    temperature=0.1,
-                    stop=["</s>", "\n\n"]
-                )
-                result_text = response['choices'][0]['text']
+                try:
+                    if hasattr(self.llm, "create_completion"):
+                        response = self.llm.create_completion(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                    elif hasattr(self.llm, "create_chat_completion"):
+                        response = self.llm.create_chat_completion(messages=[{"role": "user", "content": prompt}], max_tokens=2048, temperature=0.1)
+                        choice = response.get('choices', [{}])[0]
+                        result_text = choice.get('message', {}).get('content', choice.get('text', ''))
+                    else:
+                        response = self.llm(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                except Exception as e:
+                    logger.error(f"LLM completion failed: {e}")
+                    result_text = "{}"
             else:
                 result_text = "{}"
             
@@ -1001,13 +1028,20 @@ class AdvancedKnowledgeEngine:
             """
             
             if isinstance(self.llm, Llama):
-                response = self.llm(
-                    prompt,
-                    max_tokens=2048,
-                    temperature=0.1,
-                    stop=["</s>", "\n\n"]
-                )
-                result_text = response['choices'][0]['text']
+                try:
+                    if hasattr(self.llm, "create_completion"):
+                        response = self.llm.create_completion(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                    elif hasattr(self.llm, "create_chat_completion"):
+                        response = self.llm.create_chat_completion(messages=[{"role": "user", "content": prompt}], max_tokens=2048, temperature=0.1)
+                        choice = response.get('choices', [{}])[0]
+                        result_text = choice.get('message', {}).get('content', choice.get('text', ''))
+                    else:
+                        response = self.llm(prompt=prompt, max_tokens=2048, temperature=0.1, stop=["</s>", "\n\n"])
+                        result_text = response['choices'][0]['text']
+                except Exception as e:
+                    logger.error(f"LLM completion failed: {e}")
+                    result_text = "{}"
             else:
                 result_text = "{}"
             

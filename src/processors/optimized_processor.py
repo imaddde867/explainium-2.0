@@ -604,6 +604,9 @@ class OptimizedDocumentProcessor:
             }
             # Ensure non-empty content to avoid degenerate LLM calls
             safe_content = content if isinstance(content, str) and content.strip() else ""
+            # If little/no content, skip LLM and return empty with explicit method
+            if len(safe_content) < 20:
+                return {"entities": [], "confidence": 0.0, "method": "llm_skipped_empty"}
             result = await self.llm_engine.process_document(safe_content, document_type, metadata)
             
             # Convert ProcessingResult to dict format
@@ -615,6 +618,10 @@ class OptimizedDocumentProcessor:
                     else:
                         entity_dict = asdict(entity) if hasattr(entity, '__dict__') else str(entity)
                     entities_dict.append(entity_dict)
+                
+                # Auto-fallback: if LLM produced no entities, advertise fallback
+                if not entities_dict:
+                    return {"entities": [], "confidence": 0.0, "method": "llm_empty"}
                 
                 return {
                     "entities": entities_dict,
@@ -628,10 +635,10 @@ class OptimizedDocumentProcessor:
                 # Fallback if result doesn't have expected structure
                 return {
                     "entities": [],
-                    "confidence": 0.8,
+                    "confidence": 0.0,
                     "method": "llm_processing_fallback",
                     "quality_metrics": {},
-                    "llm_enhanced": True,
+                    "llm_enhanced": False,
                     "validation_passed": True
                 }
                 
@@ -772,6 +779,27 @@ class OptimizedDocumentProcessor:
                 entity["quality_score"] = entity.get("confidence", 0.7)
                 all_entities.append(entity)
         
+        # If no entities at all, attempt a last-chance extraction from content directly
+        if not all_entities and isinstance(content, str) and len(content) >= 20:
+            try:
+                last_chance = self.extraction_engine.extract_comprehensive_knowledge(content, document_type) if self.extraction_engine else []
+                for entity in last_chance:
+                    if hasattr(entity, 'content') and hasattr(entity, 'confidence'):
+                        all_entities.append({
+                            'content': entity.content,
+                            'entity_type': getattr(entity, 'entity_type', 'unknown'),
+                            'category': getattr(entity, 'category', 'general'),
+                            'confidence': entity.confidence,
+                            'context': getattr(entity, 'context', ''),
+                            'metadata': getattr(entity, 'metadata', {}),
+                            'relationships': getattr(entity, 'relationships', []),
+                            'source_location': getattr(entity, 'source_location', ''),
+                            'source': 'enhanced_extraction',
+                            'quality_score': entity.confidence
+                        })
+            except Exception:
+                pass
+        
         # Remove duplicates with quality-aware deduplication
         unique_entities = self._deduplicate_entities_quality_aware(all_entities)
         
@@ -793,8 +821,8 @@ class OptimizedDocumentProcessor:
         ]
         
         # Check if we have high-quality AI processing
-        has_llm_processing = llm_result.get("method") != "llm_unavailable" and llm_result.get("method") != "llm_failed"
-        has_enhanced_extraction = extraction_result.get("method") == "enhanced_extraction"
+        has_llm_processing = llm_result.get("method") not in {"llm_unavailable", "llm_failed", "llm_skipped_empty", "llm_empty"} and bool(llm_entities)
+        has_enhanced_extraction = extraction_result.get("method") == "enhanced_extraction" or bool(extraction_entities)
         has_advanced_validation = validation_result.get("method") == "advanced_validation"
         
         if has_llm_processing and has_enhanced_extraction:

@@ -27,6 +27,8 @@ import re
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import time
+import os
+import platform
 
 # Import LLM backends
 try:
@@ -203,7 +205,12 @@ class OptimizedLLMProcessingEngine:
         
         # Initialize LLM model (if available)
         if LLAMA_AVAILABLE:
-            await self._initialize_primary_llm()
+            # Respect env override to disable LLM (prevents native crashes in some setups)
+            if os.getenv("EXPLAINIUM_DISABLE_LLM", "false").lower() in ("1", "true", "yes"): 
+                logger.warning("⚠️ LLM explicitly disabled via EXPLAINIUM_DISABLE_LLM; proceeding without LLM")
+                self.llm_model = None
+            else:
+                await self._initialize_primary_llm()
         
         self.initialized = True
         logger.info("✅ Optimized LLM Processing Engine initialized")
@@ -226,14 +233,15 @@ class OptimizedLLMProcessingEngine:
                 model_path = p
 
             if model_path and model_path.exists():
-                # Try conservative memory settings first
+                # Choose conservative defaults, even more conservative on non-macOS
+                is_macos = platform.system() == "Darwin"
                 try:
                     self.llm_model = Llama(
                         model_path=str(model_path),
-                        n_ctx=1024,
-                        n_batch=64,
-                        n_threads=6,
-                        n_gpu_layers=0,
+                        n_ctx=1024 if is_macos else 512,
+                        n_batch=64 if is_macos else 16,
+                        n_threads=6 if is_macos else max(2, min(4, os.cpu_count() or 4)),
+                        n_gpu_layers=0,  # avoid GPU layer assumptions
                         verbose=False
                     )
                     logger.info(f"✅ LLM model initialized from {model_path}")
@@ -243,8 +251,8 @@ class OptimizedLLMProcessingEngine:
                     self.llm_model = Llama(
                         model_path=str(model_path),
                         n_ctx=512,
-                        n_batch=32,
-                        n_threads=4,
+                        n_batch=8,
+                        n_threads=max(2, min(4, os.cpu_count() or 4)),
                         n_gpu_layers=0,
                         verbose=False
                     )
@@ -277,6 +285,23 @@ class OptimizedLLMProcessingEngine:
         
         logger.info(f"🚀 Starting OPTIMIZED processing for {document_type} document")
         
+        # Guard: if we have no content, skip LLM path entirely
+        if not isinstance(content, str) or len(content.strip()) < 20:
+            logger.info("Content too small/empty for LLM; using enhanced patterns")
+            entities = await self._execute_enhanced_patterns(content or "", document_type)
+            quality_metrics = self._calculate_quality_metrics_fast(entities, "enhanced_patterns")
+            processing_time = time.time() - self.start_time
+            return ProcessingResult(
+                entities=entities,
+                processing_method="enhanced_patterns",
+                confidence_score=quality_metrics["overall_confidence"],
+                quality_metrics=quality_metrics,
+                processing_time=processing_time,
+                llm_enhanced=False,
+                validation_passed=quality_metrics["validation_score"] >= QualityThreshold.ENTITY_VALIDATION.value,
+                metadata={"document_type": document_type, "complexity_score": 0.0, "processing_stats": self.processing_stats, "cache_used": False}
+            )
+        
         # STEP 1: Fast Content Analysis (async)
         complexity_task = asyncio.create_task(self._assess_document_complexity_fast(content, document_type))
         
@@ -305,6 +330,11 @@ class OptimizedLLMProcessingEngine:
             logger.warning("⏰ Processing timeout, falling back to fast patterns")
             entities = await self._execute_fast_pattern_fallback(content, document_type)
         
+        # If LLM path yielded nothing, auto-fallback to enhanced patterns
+        if not entities and processing_method.startswith("llm"):
+            logger.info("LLM produced no entities; falling back to enhanced patterns")
+            entities = await self._execute_enhanced_patterns(content, document_type)
+        
         # STEP 6: Fast Validation (minimal)
         validated_entities = await self._validate_entities_fast(entities, content)
         
@@ -316,7 +346,7 @@ class OptimizedLLMProcessingEngine:
         
         result = ProcessingResult(
             entities=validated_entities,
-            processing_method=processing_method,
+            processing_method=processing_method if validated_entities else "enhanced_patterns",
             confidence_score=quality_metrics["overall_confidence"],
             quality_metrics=quality_metrics,
             processing_time=processing_time,
@@ -368,14 +398,15 @@ class OptimizedLLMProcessingEngine:
         content_type = metadata.get('content_type', '')
         file_type = metadata.get('file_type', '')
         
+        # Respect env override to disable LLM for media (prevents native crashes)
+        llm_media_allowed = os.getenv("EXPLAINIUM_LLM_MEDIA", "false").lower() in ("1", "true", "yes")
         if content_type == 'video_content' or file_type in ('video', 'image'):
-            # Prefer LLM for video and image transcripts when available
-            if self.llm_model is not None:
+            if self.llm_model is not None and llm_media_allowed:
                 logger.info("Using LLM processing for media content")
                 return "llm_chunked"
             else:
-                # Enhanced patterns if LLM unavailable
-                logger.info("Using enhanced patterns for media content (LLM unavailable)")
+                # Enhanced patterns if LLM unavailable or disabled for media
+                logger.info("Using enhanced patterns for media content (LLM unavailable/disabled)")
                 return "enhanced_patterns"
         
         # Rule 1: Fast patterns for simple content
@@ -469,6 +500,10 @@ class OptimizedLLMProcessingEngine:
                 all_entities.extend(result)
             elif isinstance(result, Exception):
                 logger.warning(f"Chunk processing error: {result}")
+        
+        # If nothing extracted, fallback to enhanced patterns
+        if not all_entities:
+            return await self._execute_enhanced_patterns(content, document_type)
         
         return all_entities
     
@@ -566,10 +601,26 @@ Format: [Entity Type]: [Content]"""
         try:
             if not self.llm_model:
                 return ""
-            response = self.llm_model(prompt, max_tokens=256, temperature=0.1)
-            return response.get('choices', [{}])[0].get('text', '')
+            # Prefer explicit completion API to avoid ABI issues
+            if hasattr(self.llm_model, "create_completion"):
+                response = self.llm_model.create_completion(prompt=prompt, max_tokens=256, temperature=0.1)
+                return response.get('choices', [{}])[0].get('text', '')
+            elif hasattr(self.llm_model, "create_chat_completion"):
+                response = self.llm_model.create_chat_completion(messages=[{"role": "user", "content": prompt}], max_tokens=256, temperature=0.1)
+                # Some builds return 'message' instead of 'text'
+                choice = response.get('choices', [{}])[0]
+                msg = choice.get('message', {})
+                return msg.get('content', choice.get('text', ''))
+            else:
+                response = self.llm_model(prompt=prompt, max_tokens=256, temperature=0.1)
+                return response.get('choices', [{}])[0].get('text', '')
         except Exception as e:
             logger.error(f"LLM query error: {e}")
+            # Disable further LLM usage in this session to avoid repeated native errors
+            try:
+                self.llm_model = None
+            except Exception:
+                pass
             return ""
     
     def _parse_llm_response_fast(self, response: str, chunk: str, document_type: str) -> List[ExtractedEntity]:
