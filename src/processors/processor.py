@@ -2001,7 +2001,7 @@ class DocumentProcessor:
             return {}
     
     def _enhanced_audio_transcription(self, file_path: Path) -> Dict[str, Any]:
-        """Enhanced audio transcription with better quality and metadata"""
+        """Enhanced audio transcription with improved accuracy and quality"""
         try:
             import ffmpeg
             
@@ -2010,27 +2010,40 @@ class DocumentProcessor:
                 temp_audio_path = temp_audio.name
             
             try:
-                # Simplified audio extraction for better compatibility
+                # Enhanced audio extraction with noise reduction and normalization
                 (
                     ffmpeg
                     .input(str(file_path))
+                    .filter('highpass', f=200)  # Remove low-frequency noise
+                    .filter('lowpass', f=8000)  # Remove high-frequency noise
+                    .filter('loudnorm')  # Normalize audio levels
                     .output(
                         temp_audio_path, 
                         acodec='pcm_s16le', 
-                        ac=1, 
-                        ar='16000'
+                        ac=1,  # Mono for better transcription
+                        ar='16000'  # Whisper's preferred sample rate
                     )
                     .overwrite_output()
                     .run(quiet=True, capture_stdout=True, capture_stderr=True)
                 )
                 
-                # Transcribe with enhanced settings
+                # Enhanced transcription with improved settings
                 result = self.whisper_model.transcribe(
                     temp_audio_path,
                     fp16=False,
                     language=None,  # Auto-detect
                     task='transcribe',
-                    verbose=False
+                    verbose=False,
+                    # Enhanced accuracy settings
+                    word_timestamps=True,  # Enable word-level timestamps
+                    condition_on_previous_text=False,  # Reduce hallucinations
+                    temperature=0.0,  # More deterministic output
+                    best_of=5,  # Try multiple decodings for better accuracy
+                    beam_size=5,  # Use beam search for better results
+                    patience=1.0,  # Wait for better candidates
+                    length_penalty=1.0,  # No length penalty
+                    suppress_tokens=[-1],  # Suppress special tokens
+                    initial_prompt="This is a technical or instructional video. Focus on accurate transcription of spoken words, procedures, and technical terms."
                 )
                 
                 transcript = (result.get('text') or '').strip()
@@ -2138,8 +2151,97 @@ class DocumentProcessor:
             logger.warning(f"Intelligent frame analysis failed: {e}")
             return {}
     
+    def _enhanced_ocr_extraction(self, frame: np.ndarray) -> str:
+        """Enhanced OCR with multiple preprocessing techniques for better accuracy"""
+        try:
+            # Convert to grayscale
+            if len(frame.shape) == 3:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = frame.copy()
+            
+            # Try multiple preprocessing approaches and combine results
+            ocr_results = []
+            
+            # Method 1: Standard preprocessing with OTSU thresholding
+            try:
+                denoised = cv2.fastNlMeansDenoising(gray)
+                _, thresh1 = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                text1 = pytesseract.image_to_string(thresh1, config='--psm 6 --oem 3')
+                if text1.strip():
+                    ocr_results.append(text1.strip())
+            except Exception:
+                pass
+            
+            # Method 2: Adaptive thresholding for varied lighting
+            try:
+                adaptive_thresh = cv2.adaptiveThreshold(
+                    gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+                )
+                text2 = pytesseract.image_to_string(adaptive_thresh, config='--psm 6 --oem 3')
+                if text2.strip():
+                    ocr_results.append(text2.strip())
+            except Exception:
+                pass
+            
+            # Method 3: Enhanced contrast and sharpening
+            try:
+                # Enhance contrast
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                enhanced = clahe.apply(gray)
+                
+                # Sharpen the image
+                kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+                sharpened = cv2.filter2D(enhanced, -1, kernel)
+                
+                # Threshold
+                _, thresh3 = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                text3 = pytesseract.image_to_string(thresh3, config='--psm 6 --oem 3')
+                if text3.strip():
+                    ocr_results.append(text3.strip())
+            except Exception:
+                pass
+            
+            # Method 4: Morphological operations for text enhancement
+            try:
+                # Create kernel for morphological operations
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+                
+                # Apply morphological operations
+                morph = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
+                morph = cv2.morphologyEx(morph, cv2.MORPH_OPEN, kernel)
+                
+                # Threshold
+                _, thresh4 = cv2.threshold(morph, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                text4 = pytesseract.image_to_string(thresh4, config='--psm 6 --oem 3')
+                if text4.strip():
+                    ocr_results.append(text4.strip())
+            except Exception:
+                pass
+            
+            # Combine and deduplicate results
+            if ocr_results:
+                # Find the longest result as it's likely most complete
+                best_result = max(ocr_results, key=len)
+                
+                # Clean up the text
+                lines = []
+                for line in best_result.split('\n'):
+                    line = line.strip()
+                    # Filter out very short lines or lines with mostly special characters
+                    if len(line) > 2 and len([c for c in line if c.isalnum()]) > len(line) * 0.5:
+                        lines.append(line)
+                
+                return '\n'.join(lines)
+            
+            return ""
+            
+        except Exception as e:
+            logger.warning(f"Enhanced OCR extraction failed: {e}")
+            return ""
+    
     def _analyze_video_frame(self, frame: np.ndarray, frame_index: int, fps: float) -> Dict[str, Any]:
-        """Analyze individual video frame for content"""
+        """Analyze individual video frame for content with enhanced OCR"""
         try:
             analysis = {
                 'frame_index': frame_index,
@@ -2183,56 +2285,104 @@ class DocumentProcessor:
             return {'frame_index': frame_index, 'timestamp': frame_index / fps}
     
     def _classify_video_scene(self, frame: np.ndarray) -> str:
-        """Classify the type of scene in a video frame"""
+        """Enhanced scene classification with improved accuracy"""
         try:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             height, width = gray.shape
             
-            # Text density analysis
+            # Calculate visual characteristics
+            brightness = np.mean(gray)
+            contrast = np.std(gray)
+            
+            # Enhanced text density analysis
+            text_confidence_scores = []
+            text_regions = 0
             if self.ocr_available:
                 try:
                     data = pytesseract.image_to_data(frame, output_type=pytesseract.Output.DICT)
-                    text_regions = len([conf for conf in data['conf'] if int(conf) > 30])
+                    text_confidence_scores = [int(conf) for conf in data['conf'] if int(conf) > 30]
+                    text_regions = len(text_confidence_scores)
+                    avg_text_confidence = np.mean(text_confidence_scores) if text_confidence_scores else 0
                     text_density = text_regions / (width * height / 10000)  # Normalize by area
                     
-                    if text_density > 5:
+                    # High confidence text regions indicate document/presentation content
+                    if avg_text_confidence > 70 and text_density > 5:
                         return 'document'
-                    elif text_density > 2:
+                    elif avg_text_confidence > 60 and text_density > 2:
                         return 'presentation'
+                    elif avg_text_confidence > 50 and text_density > 1:
+                        return 'text_overlay'  # Video with text overlays
                 except:
                     text_density = 0
+                    avg_text_confidence = 0
             else:
                 text_density = 0
+                avg_text_confidence = 0
             
-            # Edge and contour analysis
+            # Enhanced edge and contour analysis
             edges = cv2.Canny(gray, 50, 150)
+            edge_density = np.sum(edges) / (edges.shape[0] * edges.shape[1] * 255)
             contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
-            # Rectangle detection (UI elements)
-            rectangles = 0
+            # UI element detection (rectangles, buttons)
+            ui_elements = 0
+            large_rectangles = 0
             for contour in contours:
-                if cv2.contourArea(contour) > 500:
+                area = cv2.contourArea(contour)
+                if area > 200:  # Minimum size for meaningful shapes
                     approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
                     if len(approx) == 4:
-                        rectangles += 1
+                        # Check if it's a reasonable rectangle (not too thin)
+                        rect = cv2.boundingRect(contour)
+                        aspect_ratio = rect[2] / max(rect[3], 1)
+                        if 0.1 < aspect_ratio < 10:  # Reasonable aspect ratio
+                            ui_elements += 1
+                            if area > 1000:
+                                large_rectangles += 1
             
-            if rectangles > 5:
+            # Software interface detection
+            if ui_elements > 8 and text_density > 0.5:
+                return 'software_interface'
+            elif ui_elements > 5 and large_rectangles > 2:
                 return 'interface'
             
-            # Geometric shapes (diagrams)
+            # Diagram and technical content detection
             geometric_shapes = 0
+            circles = 0
             for contour in contours:
-                if cv2.contourArea(contour) > 200:
+                area = cv2.contourArea(contour)
+                if area > 300:
+                    # Detect circles
+                    perimeter = cv2.arcLength(contour, True)
+                    circularity = 4 * np.pi * area / (perimeter * perimeter) if perimeter > 0 else 0
+                    if circularity > 0.7:
+                        circles += 1
+                    
+                    # Detect polygons
                     approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
-                    if len(approx) in [3, 4, 5, 6, 8]:
+                    if len(approx) in [3, 5, 6, 8]:  # Triangle, pentagon, hexagon, octagon
                         geometric_shapes += 1
             
-            if geometric_shapes > 3:
+            if geometric_shapes > 3 or circles > 2:
                 return 'diagram'
             
-            # Check for procedural content indicators
-            if text_density > 0.5 and rectangles > 1:
+            # Training/instructional content detection
+            if text_density > 0.8 and ui_elements > 2 and edge_density > 0.05:
+                return 'training_content'
+            
+            # Procedural content (step-by-step instructions)
+            if text_density > 0.5 and ui_elements > 1 and contrast > 40:
                 return 'procedural'
+            
+            # Video quality assessment
+            if brightness < 30:
+                return 'dark_scene'
+            elif brightness > 220:
+                return 'overexposed'
+            elif contrast < 20:
+                return 'low_contrast'
+            elif edge_density > 0.15:
+                return 'complex_scene'
             
             return 'general'
             

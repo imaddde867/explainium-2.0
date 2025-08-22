@@ -472,7 +472,7 @@ class OptimizedDocumentProcessor:
             return f"Generic extraction failed: {str(e)}"
     
     def _extract_image_content(self, file_path: str) -> str:
-        """Fast image content extraction with OCR"""
+        """Smart image content extraction with adaptive preprocessing"""
         try:
             if not self.ocr_available:
                 return "OCR not available for image processing"
@@ -482,31 +482,19 @@ class OptimizedDocumentProcessor:
             if image is None:
                 return "Failed to load image"
             
-            # Convert to grayscale for better OCR
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            # Simple smart OCR with basic image analysis
+            result = self._simple_smart_ocr(image)
             
-            # Fast path OCR
-            text = pytesseract.image_to_string(gray, config='--psm 6')
-            if text and text.strip():
-                return text
-            
-            # Quick, low-cost enhancement if first pass failed
-            # OTSU thresholding often improves contrast for documents
-            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            text2 = pytesseract.image_to_string(binary, config='--psm 6')
-            if text2 and text2.strip():
-                return text2
-            
-            # Light denoising as a last fast fallback
-            denoised = cv2.fastNlMeansDenoising(gray)
-            text3 = pytesseract.image_to_string(denoised, config='--psm 6')
-            if text3 and text3.strip():
-                return text3
+            if result['text'] and result['text'].strip():
+                logger.info(f"Image OCR success: method={result['method']}")
+                return result['text']
             
             return "No text detected in image"
             
         except Exception as e:
-            return f"Image extraction failed: {str(e)}"
+            logger.error(f"Smart image extraction failed: {e}")
+            # Fallback to basic OCR
+            return self._basic_ocr_fallback(image)
     
     def _extract_spreadsheet_content(self, file_path: str) -> str:
         """Fast spreadsheet content extraction"""
@@ -1158,6 +1146,284 @@ class OptimizedDocumentProcessor:
             self.processing_cache.clear()
         
         print("🧹 Optimized Document Processor cleaned up")
+
+    # Simple Smart Image Processing Methods
+    
+    def _simple_smart_ocr(self, image: np.ndarray) -> Dict[str, Any]:
+        """Simple smart OCR with basic image analysis and adaptive processing"""
+        try:
+            # Step 1: Basic image analysis (minimal code, maximum impact)
+            analysis = self._analyze_image_basic(image)
+            
+            # Step 2: Choose preprocessing based on analysis
+            processed_image = self._apply_smart_preprocessing(image, analysis)
+            
+            # Step 3: Choose best OCR configuration
+            ocr_config = self._choose_ocr_config(analysis)
+            
+            # Step 4: Run OCR with smart config
+            text = pytesseract.image_to_string(processed_image, config=ocr_config)
+            
+            # Step 5: If result is poor, try multiple fallbacks
+            if not text.strip() or len(text.strip()) < 3 or self._is_text_quality_poor(text):
+                # Try multiple fallback methods
+                for fallback_method in ['enhanced', 'aggressive', 'alternative']:
+                    fallback_result = self._try_ocr_fallback(image, analysis, fallback_method)
+                    if fallback_result['text'] and len(fallback_result['text'].strip()) > 5:
+                        return fallback_result
+            
+            return {
+                'text': text.strip(),
+                'method': f"smart_ocr_{analysis['image_type']}",
+                'preprocessing': analysis['preprocessing_applied']
+            }
+            
+        except Exception as e:
+            logger.warning(f"Simple smart OCR failed: {e}")
+            return {'text': '', 'method': 'smart_ocr_failed'}
+    
+    def _analyze_image_basic(self, image: np.ndarray) -> Dict[str, Any]:
+        """Basic image analysis - just the essential metrics"""
+        try:
+            # Convert to grayscale if needed
+            if len(image.shape) == 3:
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = image
+            
+            # Calculate basic metrics (fast and simple)
+            height, width = gray.shape
+            brightness = np.mean(gray)  # Average brightness (0-255)
+            contrast = np.std(gray)     # Standard deviation = contrast measure
+            
+            # Simple sharpness measure (Laplacian variance)
+            sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+            
+            # Classify image type based on simple rules
+            image_type = self._classify_image_simple(brightness, contrast, sharpness)
+            
+            return {
+                'brightness': brightness,
+                'contrast': contrast, 
+                'sharpness': sharpness,
+                'dimensions': (width, height),
+                'image_type': image_type,
+                'preprocessing_applied': []
+            }
+            
+        except Exception as e:
+            logger.warning(f"Basic image analysis failed: {e}")
+            return {
+                'brightness': 128, 'contrast': 50, 'sharpness': 100,
+                'image_type': 'unknown', 'preprocessing_applied': []
+            }
+    
+    def _classify_image_simple(self, brightness: float, contrast: float, sharpness: float) -> str:
+        """Enhanced image classification with more aggressive detection"""
+        
+        # Rule 1: Very dark images (more aggressive threshold)
+        if brightness < 100:
+            return 'dark_image'
+        
+        # Rule 2: Very low contrast (more aggressive threshold)
+        elif contrast < 40:
+            return 'low_contrast'
+        
+        # Rule 3: Blurry images (more aggressive threshold)
+        elif sharpness < 150:
+            return 'blurry'
+        
+        # Rule 4: Very bright (overexposed)
+        elif brightness > 200:
+            return 'overexposed'
+        
+        # Rule 5: High quality (stricter requirements)
+        elif contrast > 70 and sharpness > 200 and 120 < brightness < 180:
+            return 'high_quality'
+        
+        # Default: standard processing (fewer images fall here now)
+        else:
+            return 'standard'
+    
+    def _apply_smart_preprocessing(self, image: np.ndarray, analysis: Dict[str, Any]) -> np.ndarray:
+        """Apply preprocessing based on image type - keep it simple"""
+        try:
+            # Convert to grayscale
+            if len(image.shape) == 3:
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = image.copy()
+            
+            image_type = analysis['image_type']
+            preprocessing_applied = []
+            
+            # Simple preprocessing rules
+            if image_type == 'dark_image':
+                # Brighten dark images
+                gray = cv2.convertScaleAbs(gray, alpha=1.2, beta=30)
+                preprocessing_applied.append('brightness_boost')
+                
+            elif image_type == 'low_contrast':
+                # Enhance contrast for faded images
+                gray = cv2.equalizeHist(gray)
+                preprocessing_applied.append('histogram_equalization')
+                
+            elif image_type == 'blurry':
+                # Sharpen blurry images
+                kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+                gray = cv2.filter2D(gray, -1, kernel)
+                preprocessing_applied.append('sharpening')
+                
+            elif image_type == 'overexposed':
+                # Darken overexposed images
+                gray = cv2.convertScaleAbs(gray, alpha=0.8, beta=-20)
+                preprocessing_applied.append('brightness_reduction')
+                
+            elif image_type == 'high_quality':
+                # Minimal processing for good images
+                preprocessing_applied.append('minimal')
+                
+            else:  # standard
+                # Apply OTSU thresholding for standard images
+                _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                preprocessing_applied.append('otsu_threshold')
+            
+            # Update analysis with what was applied
+            analysis['preprocessing_applied'] = preprocessing_applied
+            
+            return gray
+            
+        except Exception as e:
+            logger.warning(f"Smart preprocessing failed: {e}")
+            # Return grayscale version as fallback
+            if len(image.shape) == 3:
+                return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            return image
+    
+    def _choose_ocr_config(self, analysis: Dict[str, Any]) -> str:
+        """Choose OCR configuration based on image analysis"""
+        
+        image_type = analysis['image_type']
+        
+        # Simple OCR config selection
+        if image_type == 'high_quality':
+            return '--psm 6'  # Single uniform block of text
+        elif image_type == 'blurry' or image_type == 'low_contrast' or image_type == 'overexposed':
+            return '--psm 3'  # Fully automatic page segmentation  
+        elif image_type == 'dark_image':
+            return '--psm 1'  # Automatic page segmentation with OSD
+        else:  # standard
+            return '--psm 6'  # Default
+    
+    def _try_ocr_fallback(self, image: np.ndarray, analysis: Dict[str, Any], method: str = 'enhanced') -> Dict[str, Any]:
+        """Enhanced fallback with multiple aggressive approaches"""
+        try:
+            # Convert to grayscale
+            if len(image.shape) == 3:
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = image.copy()
+            
+            processed = None
+            config = '--psm 3'
+            preprocessing_used = []
+            
+            if method == 'enhanced':
+                # Enhanced preprocessing
+                processed = cv2.fastNlMeansDenoising(gray)
+                processed = cv2.equalizeHist(processed)
+                _, processed = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                config = '--psm 3'
+                preprocessing_used = ['denoise', 'histogram_eq', 'otsu']
+                
+            elif method == 'aggressive':
+                # More aggressive preprocessing
+                processed = cv2.fastNlMeansDenoising(gray)
+                # CLAHE for better contrast
+                clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+                processed = clahe.apply(processed)
+                # Morphological operations to clean up
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+                processed = cv2.morphologyEx(processed, cv2.MORPH_CLOSE, kernel)
+                _, processed = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                config = '--psm 1'
+                preprocessing_used = ['denoise', 'clahe', 'morphology', 'otsu']
+                
+            elif method == 'alternative':
+                # Alternative approach - adaptive threshold + different PSM
+                processed = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+                # Try to clean up with morphology
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+                processed = cv2.morphologyEx(processed, cv2.MORPH_OPEN, kernel)
+                config = '--psm 8'
+                preprocessing_used = ['adaptive_threshold', 'morphology_open']
+            
+            if processed is not None:
+                text = pytesseract.image_to_string(processed, config=config)
+                
+                return {
+                    'text': text.strip(),
+                    'method': f"fallback_{method}_{analysis['image_type']}",
+                    'preprocessing_applied': preprocessing_used
+                }
+            
+            return {'text': '', 'method': f'fallback_{method}_failed'}
+            
+        except Exception as e:
+            logger.warning(f"OCR fallback {method} failed: {e}")
+            return {'text': '', 'method': f'fallback_{method}_error'}
+    
+    def _is_text_quality_poor(self, text: str) -> bool:
+        """Check if extracted text quality is poor"""
+        if not text or len(text.strip()) < 3:
+            return True
+        
+        # Check for common OCR artifacts
+        ocr_artifacts = ['|||', '___', '###', '...', '~~~', '```']
+        artifact_count = sum(text.count(artifact) for artifact in ocr_artifacts)
+        if artifact_count > len(text) * 0.1:  # More than 10% artifacts
+            return True
+        
+        # Check character distribution
+        if len(text) > 0:
+            # Too many non-alphanumeric characters
+            non_alnum_ratio = sum(1 for c in text if not c.isalnum() and c not in ' .,!?-()[]') / len(text)
+            if non_alnum_ratio > 0.4:  # More than 40% weird characters
+                return True
+            
+            # Too few actual letters
+            letter_ratio = sum(1 for c in text if c.isalpha()) / len(text)
+            if letter_ratio < 0.3:  # Less than 30% letters
+                return True
+        
+        # Check for reasonable words
+        words = text.split()
+        if len(words) > 0:
+            avg_word_length = sum(len(word) for word in words) / len(words)
+            if avg_word_length < 1.5 or avg_word_length > 20:  # Unreasonable word lengths
+                return True
+            
+            # Check for too many single characters (common OCR error)
+            single_chars = sum(1 for word in words if len(word) == 1)
+            if single_chars > len(words) * 0.5:  # More than 50% single characters
+                return True
+        
+        return False
+    
+    def _basic_ocr_fallback(self, image: np.ndarray) -> str:
+        """Ultimate fallback - basic OCR like the original method"""
+        try:
+            if len(image.shape) == 3:
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = image
+            
+            # Just try basic OCR
+            text = pytesseract.image_to_string(gray, config='--psm 6')
+            return text.strip() if text else "Basic OCR failed"
+            
+        except Exception as e:
+            return f"All OCR methods failed: {str(e)}"
 
 # Backward compatibility
 DocumentProcessor = OptimizedDocumentProcessor
