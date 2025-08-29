@@ -31,6 +31,15 @@ import numpy as np
 from PIL import Image, ImageEnhance
 import pytesseract
 import pandas as pd
+
+# PaddleOCR (optional, graceful fallback to Tesseract)
+try:
+    import paddleocr
+    PADDLEOCR_AVAILABLE = True
+except ImportError:
+    paddleocr = None
+    PADDLEOCR_AVAILABLE = False
+
 from pptx import Presentation
 import PyPDF2
 import fitz  # PyMuPDF
@@ -86,6 +95,10 @@ class OptimizedDocumentProcessor:
         self.extraction_engine = None
         self.engines_initialized = False
         
+        # Initialize PaddleOCR (lazy loading)
+        self.paddle_ocr = None
+        self.paddle_ocr_initialized = False
+        
         # Performance monitoring
         self.processing_stats = {
             "total_documents": 0,
@@ -120,6 +133,10 @@ class OptimizedDocumentProcessor:
         print(f"🎯 Performance Target: {self.target_processing_time} seconds per document")
         print(f"⚡ Max Workers: {self.max_workers} (optimized for M4)")
         print(f"📁 Supported Formats: {len(self.supported_formats)} categories")
+        if PADDLEOCR_AVAILABLE:
+            print("🔥 PaddleOCR available for enhanced OCR accuracy")
+        else:
+            print("⚠️ PaddleOCR not available, using Tesseract only")
 
     # Backward-compatibility: legacy callers expect process_document()
     def process_document(self, file_path: str, document_id: str = None) -> Dict[str, Any]:
@@ -198,6 +215,19 @@ class OptimizedDocumentProcessor:
             self.video_processing_available = True
         except ImportError:
             pass
+    
+    def _init_paddleocr(self):
+        """Initialize PaddleOCR with basic settings"""
+        if not PADDLEOCR_AVAILABLE or self.paddle_ocr_initialized:
+            return
+        try:
+            self.paddle_ocr = paddleocr.PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+            self.paddle_ocr_initialized = True
+            logger.info("✅ PaddleOCR initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ PaddleOCR initialization failed: {e}")
+            self.paddle_ocr = None
+            self.paddle_ocr_initialized = False
     
     def _initialize_engines(self):
         """Lazy initialize processing engines"""
@@ -1150,23 +1180,22 @@ class OptimizedDocumentProcessor:
     # Simple Smart Image Processing Methods
     
     def _simple_smart_ocr(self, image: np.ndarray) -> Dict[str, Any]:
-        """Simple smart OCR with basic image analysis and adaptive processing"""
+        """Hybrid OCR: PaddleOCR primary, Tesseract fallback"""
         try:
-            # Step 1: Basic image analysis (minimal code, maximum impact)
+            # Step 1: Try PaddleOCR first (if available)
+            if PADDLEOCR_AVAILABLE:
+                paddle_result = self._try_paddleocr(image)
+                if paddle_result['text'] and len(paddle_result['text'].strip()) > 10:
+                    return paddle_result
+            
+            # Step 2: Fallback to enhanced Tesseract
             analysis = self._analyze_image_basic(image)
-            
-            # Step 2: Choose preprocessing based on analysis
             processed_image = self._apply_smart_preprocessing(image, analysis)
-            
-            # Step 3: Choose best OCR configuration
             ocr_config = self._choose_ocr_config(analysis)
-            
-            # Step 4: Run OCR with smart config
             text = pytesseract.image_to_string(processed_image, config=ocr_config)
             
-            # Step 5: If result is poor, try multiple fallbacks
+            # Step 3: If Tesseract result is poor, try multiple fallbacks
             if not text.strip() or len(text.strip()) < 3 or self._is_text_quality_poor(text):
-                # Try multiple fallback methods
                 for fallback_method in ['enhanced', 'aggressive', 'alternative']:
                     fallback_result = self._try_ocr_fallback(image, analysis, fallback_method)
                     if fallback_result['text'] and len(fallback_result['text'].strip()) > 5:
@@ -1174,13 +1203,56 @@ class OptimizedDocumentProcessor:
             
             return {
                 'text': text.strip(),
-                'method': f"smart_ocr_{analysis['image_type']}",
+                'method': f"tesseract_{analysis['image_type']}",
                 'preprocessing': analysis['preprocessing_applied']
             }
             
         except Exception as e:
-            logger.warning(f"Simple smart OCR failed: {e}")
-            return {'text': '', 'method': 'smart_ocr_failed'}
+            logger.warning(f"Hybrid OCR failed: {e}")
+            return {'text': '', 'method': 'hybrid_ocr_failed'}
+    
+    def _try_paddleocr(self, image: np.ndarray) -> Dict[str, Any]:
+        """Try PaddleOCR with minimal setup"""
+        try:
+            # Initialize PaddleOCR if needed
+            if not self.paddle_ocr_initialized:
+                self._init_paddleocr()
+            
+            if not self.paddle_ocr:
+                return {'text': '', 'method': 'paddleocr_unavailable'}
+            
+            # Run PaddleOCR
+            results = self.paddle_ocr.ocr(image, cls=True)
+            
+            if not results or not results[0]:
+                return {'text': '', 'method': 'paddleocr_no_results'}
+            
+            # Extract text from results
+            text_lines = []
+            confidences = []
+            for line in results[0]:
+                if line:
+                    bbox, (text, confidence) = line
+                    if text and text.strip() and confidence > 0.6:  # Filter low confidence
+                        text_lines.append(text.strip())
+                        confidences.append(confidence)
+            
+            if not text_lines:
+                return {'text': '', 'method': 'paddleocr_low_confidence'}
+            
+            combined_text = ' '.join(text_lines)
+            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+            
+            return {
+                'text': combined_text,
+                'method': 'paddleocr',
+                'confidence': avg_confidence,
+                'line_count': len(text_lines)
+            }
+            
+        except Exception as e:
+            logger.warning(f"PaddleOCR processing failed: {e}")
+            return {'text': '', 'method': 'paddleocr_error'}
     
     def _analyze_image_basic(self, image: np.ndarray) -> Dict[str, Any]:
         """Basic image analysis - just the essential metrics"""
