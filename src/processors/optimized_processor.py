@@ -217,11 +217,12 @@ class OptimizedDocumentProcessor:
             pass
     
     def _init_paddleocr(self):
-        """Initialize PaddleOCR with basic settings"""
+        """Initialize PaddleOCR with basic settings - FIXED for v3.2.0"""
         if not PADDLEOCR_AVAILABLE or self.paddle_ocr_initialized:
             return
         try:
-            self.paddle_ocr = paddleocr.PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+            # Fixed parameters for PaddleOCR 3.2.0
+            self.paddle_ocr = paddleocr.PaddleOCR(use_textline_orientation=True, lang='en')
             self.paddle_ocr_initialized = True
             logger.info("✅ PaddleOCR initialized successfully")
         except Exception as e:
