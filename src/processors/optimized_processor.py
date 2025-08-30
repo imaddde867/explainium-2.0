@@ -222,16 +222,16 @@ class OptimizedDocumentProcessor:
             return
         try:
             # ULTRA-LIGHTWEIGHT configuration for Intel Mac with 8GB RAM
-            # Use the lightest possible PaddleOCR settings
+            # Use the lightest possible PaddleOCR settings with correct parameter names
             self.paddle_ocr = paddleocr.PaddleOCR(
                 lang='en',
-                use_textline_orientation=False,  # Disable heavy orientation detection
-                text_det_thresh=0.3,            # Lower detection threshold (faster)
-                text_det_box_thresh=0.5,        # Lower box threshold (faster)
-                enable_mkldnn=True,             # Enable Intel MKL-DNN optimization
-                cpu_threads=2,                  # Limit CPU threads to prevent overload
-                det_limit_side_len=640,         # Smaller image size (faster processing)
-                rec_batch_num=1                 # Process one text line at a time
+                use_textline_orientation=False,      # Disable heavy orientation detection
+                text_det_thresh=0.3,                # Lower detection threshold (faster)
+                text_det_box_thresh=0.5,            # Lower box threshold (faster)
+                enable_mkldnn=True,                 # Enable Intel MKL-DNN optimization
+                cpu_threads=2,                      # Limit CPU threads to prevent overload
+                text_det_limit_side_len=640,        # Smaller image size (faster processing)
+                text_recognition_batch_size=1       # Process one text line at a time
             )
             self.paddle_ocr_initialized = True
             logger.info("✅ PaddleOCR initialized with LIGHTWEIGHT settings for Intel Mac")
