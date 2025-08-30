@@ -222,12 +222,9 @@ class OptimizedDocumentProcessor:
             return
         try:
             # LIGHTWEIGHT configuration for Intel Mac with 8GB RAM
-            # Use fastest models, disable heavy features
+            # Use default models (they exist and work)
             self.paddle_ocr = paddleocr.PaddleOCR(
                 lang='en',
-                det_model_dir='ch_PP-OCRv4_det_infer',  # Use lighter detection model
-                rec_model_dir='en_PP-OCRv4_rec_infer',   # Use lighter recognition model
-                cls_model_dir=None,  # Disable classification model
                 enable_mkldnn=True,  # Enable Intel MKL-DNN optimization
                 cpu_threads=2,  # Limit CPU threads to prevent overload
                 det_limit_side_len=960,  # Limit image size for faster processing
