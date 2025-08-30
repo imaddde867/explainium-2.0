@@ -162,7 +162,7 @@ def process_with_intelligent_ai_engine(uploaded_file, file_name, file_type):
             import tempfile
             import os
             from pathlib import Path
-            from processors.optimized_processor import OptimizedDocumentProcessor
+            from src.processors.optimized_processor import OptimizedDocumentProcessor
 
             # Lazy-init the heavy processor once per session with a spinner
             processor = getattr(st.session_state, 'document_processor', None)

@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # EXPLAINIUM - Application Startup Script
 
 # Colors
@@ -35,6 +33,8 @@ start_frontend() {
     echo -e "${GREEN}Starting Frontend Dashboard...${NC}"
     # Ensure we're in the project root directory
     cd "$(dirname "$0")"
+    # Set PYTHONPATH to include src directory for proper imports
+    export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
     streamlit run src/frontend/knowledge_table.py --server.port 8501 --server.address localhost &
     FRONTEND_PID=$!
     echo "Frontend PID: $FRONTEND_PID"

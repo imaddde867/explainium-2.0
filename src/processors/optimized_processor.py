@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 OPTIMIZED Document Processor - Performance-First Implementation
 Target: 2 minutes max per document processing time
@@ -12,6 +11,7 @@ import logging
 import time
 import json
 import hashlib
+import re
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -32,13 +32,18 @@ from PIL import Image, ImageEnhance
 import pytesseract
 import pandas as pd
 
-# PaddleOCR (optional, graceful fallback to Tesseract)
-try:
-    import paddleocr
-    PADDLEOCR_AVAILABLE = True
-except ImportError:
-    paddleocr = None
-    PADDLEOCR_AVAILABLE = False
+# PaddleOCR 
+# Dynamic detection function for better reliability
+def _check_paddleocr_available():
+    """Dynamically check if PaddleOCR is available"""
+    try:
+        import paddleocr
+        return True, paddleocr
+    except ImportError:
+        return False, None
+
+# Initial check (but can be re-checked later)
+PADDLEOCR_AVAILABLE, paddleocr = _check_paddleocr_available()
 
 from pptx import Presentation
 import PyPDF2
@@ -133,7 +138,10 @@ class OptimizedDocumentProcessor:
         print(f"🎯 Performance Target: {self.target_processing_time} seconds per document")
         print(f"⚡ Max Workers: {self.max_workers} (optimized for M4)")
         print(f"📁 Supported Formats: {len(self.supported_formats)} categories")
-        if PADDLEOCR_AVAILABLE:
+        
+        # Dynamic PaddleOCR check for better reliability
+        paddle_available, _ = _check_paddleocr_available()
+        if paddle_available:
             print("🔥 PaddleOCR available for enhanced OCR accuracy")
         else:
             print("⚠️ PaddleOCR not available, using Tesseract only")
@@ -217,24 +225,18 @@ class OptimizedDocumentProcessor:
             pass
     
     def _init_paddleocr(self):
-        """Initialize PaddleOCR with LIGHTWEIGHT settings for Intel Mac - FIXED for v3.2.0"""
-        if not PADDLEOCR_AVAILABLE or self.paddle_ocr_initialized:
+        """Initialize PaddleOCR with working configuration for v3.2.0"""
+        paddle_available, paddle_module = _check_paddleocr_available()
+        if not paddle_available or self.paddle_ocr_initialized:
             return
         try:
-            # ULTRA-LIGHTWEIGHT configuration for Intel Mac with 8GB RAM
-            # Use the lightest possible PaddleOCR settings with correct parameter names
-            self.paddle_ocr = paddleocr.PaddleOCR(
+            # Use minimal working configuration based on testing
+            self.paddle_ocr = paddle_module.PaddleOCR(
                 lang='en',
-                use_textline_orientation=False,      # Disable heavy orientation detection
-                text_det_thresh=0.3,                # Lower detection threshold (faster)
-                text_det_box_thresh=0.5,            # Lower box threshold (faster)
-                enable_mkldnn=True,                 # Enable Intel MKL-DNN optimization
-                cpu_threads=2,                      # Limit CPU threads to prevent overload
-                text_det_limit_side_len=640,        # Smaller image size (faster processing)
-                text_recognition_batch_size=1       # Process one text line at a time
+                use_textline_orientation=False      # Disable orientation detection for speed
             )
             self.paddle_ocr_initialized = True
-            logger.info("✅ PaddleOCR initialized with LIGHTWEIGHT settings for Intel Mac")
+            logger.info("✅ PaddleOCR initialized successfully")
         except Exception as e:
             logger.error(f"❌ PaddleOCR initialization failed: {e}")
             self.paddle_ocr = None
@@ -1193,8 +1195,9 @@ class OptimizedDocumentProcessor:
     def _simple_smart_ocr(self, image: np.ndarray) -> Dict[str, Any]:
         """Hybrid OCR: PaddleOCR primary, Tesseract fallback"""
         try:
-            # Step 1: Try PaddleOCR first (if available)
-            if PADDLEOCR_AVAILABLE:
+            # Step 1: Try PaddleOCR first (dynamic check)
+            paddle_available, _ = _check_paddleocr_available()
+            if paddle_available:
                 paddle_result = self._try_paddleocr(image)
                 if paddle_result['text'] and len(paddle_result['text'].strip()) > 10:
                     return paddle_result
@@ -1223,7 +1226,7 @@ class OptimizedDocumentProcessor:
             return {'text': '', 'method': 'hybrid_ocr_failed'}
     
     def _try_paddleocr(self, image: np.ndarray) -> Dict[str, Any]:
-        """Try PaddleOCR with minimal setup and TIMEOUT for Intel Mac"""
+        """Try PaddleOCR with thread-safe processing"""
         try:
             # Initialize PaddleOCR if needed
             if not self.paddle_ocr_initialized:
@@ -1232,22 +1235,12 @@ class OptimizedDocumentProcessor:
             if not self.paddle_ocr:
                 return {'text': '', 'method': 'paddleocr_unavailable'}
             
-            # Run PaddleOCR with TIMEOUT to prevent hanging on Intel Mac
-            import signal
-            
-            def timeout_handler(signum, frame):
-                raise TimeoutError("PaddleOCR processing timed out")
-            
-            # Set 10 second timeout for Intel Mac
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(10)
-            
+            # Run PaddleOCR (removed signal timeout for thread safety)
             try:
                 results = self.paddle_ocr.ocr(image)
-                signal.alarm(0)  # Cancel timeout
-            except TimeoutError:
-                logger.warning("PaddleOCR timed out on Intel Mac - falling back to Tesseract")
-                return {'text': '', 'method': 'paddleocr_timeout'}
+            except Exception as e:
+                logger.warning(f"PaddleOCR execution failed: {e}")
+                return {'text': '', 'method': 'paddleocr_execution_error'}
             
             if not results or not results[0]:
                 return {'text': '', 'method': 'paddleocr_no_results'}
