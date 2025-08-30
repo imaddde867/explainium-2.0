@@ -224,12 +224,10 @@ class OptimizedDocumentProcessor:
             # LIGHTWEIGHT configuration for Intel Mac with 8GB RAM
             # Use fastest models, disable heavy features
             self.paddle_ocr = paddleocr.PaddleOCR(
-                use_textline_orientation=False,  # Disable heavy orientation detection
                 lang='en',
                 det_model_dir='ch_PP-OCRv4_det_infer',  # Use lighter detection model
                 rec_model_dir='en_PP-OCRv4_rec_infer',   # Use lighter recognition model
                 cls_model_dir=None,  # Disable classification model
-                use_angle_cls=False,  # Disable angle classification
                 use_gpu=False,  # Force CPU mode for Intel Mac
                 enable_mkldnn=True,  # Enable Intel MKL-DNN optimization
                 cpu_threads=2,  # Limit CPU threads to prevent overload
