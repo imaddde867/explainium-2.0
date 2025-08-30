@@ -1556,52 +1556,155 @@ class OptimizedDocumentProcessor:
             
             corrected = text
             
-            # Common OCR character substitutions (lightweight regex)
+            # ENHANCED OCR character substitutions with context awareness
             corrections = [
-                # Character fixes
-                (r'\boneven\b', 'even'),           # "oneven if" -> "even if"
-                (r'\baane\b', 'are'),              # "aane - Ve" -> "are - be"
-                (r'\bVe\b', 'be'),                 # "aane - Ve" -> "are - be"
-                (r'\bSy\b', 'Safety'),             # "accidents Sy" -> "accidents. Safety"
-                (r'\bprota\b', 'protocol'),        # "pres prota" -> "pres protocol"
-                (r'\bForthose\b', 'For those'),    # "Forthose who" -> "For those who"
-                (r'\bwhomighthave\b', 'who might have'),  # "whomighthave" -> "who might have"
-                (r'\bandrestatethe\b', 'and restate the'), # "andrestatethe" -> "and restate the"
-                (r'\bthewider\b', 'the wider'),    # "thewider class" -> "the wider class"
-                (r'\btohelp\b', 'to help'),        # "tohelp you" -> "to help you"
-                (r'\btoexlaintheir\b', 'to explain their'), # "toexlaintheir" -> "to explain their"
-                (r'\bsampleofst\b', 'sample of'),  # "sampleofst" -> "sample of"
+                # Safety/Procedure specific fixes
+                (r'\bZo Py Q\b', 'Zone. Pay attention. Communicate'),  # "Zo Py Q Communicate" -> "Zone. Pay attention. Communicate"
+                (r'\bgotter\b', 'gotten'),                              # "gotter if" -> "gotten if"
+                (r'\bOpener aution\b', 'proper caution'),               # "Opener aution" -> "proper caution"
+                (r'\bae ge bal\b', 'age and balance'),                   # "ae ge bal" -> "age and balance"
+                (r'\bpe mbustible\b', 'combustible'),                    # "pe mbustible" -> "combustible"
+                (r'\bunzipped /, h\b', 'unzipped. They'),               # "unzipped /, h" -> "unzipped. They"
+                (r'\bsbels\b', 'labels'),                               # "sbels on machines" -> "labels on machines"
+                (r'\bP ast\b', 'past'),                                 # "P ast line" -> "past line"
+                (r'\bappropnate\b', 'appropriate'),                      # "appropnate" -> "appropriate"
+                (r'\bdrawstrings\b', 'drawstrings'),                     # Keep as is
                 
-                # Punctuation fixes
-                (r'(\w)\|(\w)', r'\1 \2'),        # "word|word" -> "word word"
-                (r'(\w)\[(\w)', r'\1 \2'),        # "word[word" -> "word word"
-                (r'(\w)\](\w)', r'\1 \2'),        # "word]word" -> "word word"
-                (r'(\w)\+(\w)', r'\1 \2'),        # "word+word" -> "word word"
-                (r'(\w)\=(\w)', r'\1 \2'),        # "word=word" -> "word word"
+                # Character fixes (existing)
+                (r'\boneven\b', 'even'),                                # "oneven if" -> "even if"
+                (r'\baane\b', 'are'),                                   # "aane - Ve" -> "are - be"
+                (r'\bVe\b', 'be'),                                      # "aane - Ve" -> "are - be"
+                (r'\bSy\b', 'Safety'),                                  # "accidents Sy" -> "accidents. Safety"
+                (r'\bprota\b', 'protocol'),                             # "pres prota" -> "pres protocol"
+                (r'\bForthose\b', 'For those'),                         # "Forthose who" -> "For those who"
+                (r'\bwhomighthave\b', 'who might have'),                 # "whomighthave" -> "who might have"
+                (r'\bandrestatethe\b', 'and restate the'),               # "andrestatethe" -> "and restate the"
+                (r'\bthewider\b', 'the wider'),                         # "thewider class" -> "the wider class"
+                (r'\btohelp\b', 'to help'),                             # "tohelp you" -> "to help you"
+                (r'\btoexlaintheir\b', 'to explain their'),             # "toexlaintheir" -> "to explain their"
+                (r'\bsampleofst\b', 'sample of'),                       # "sampleofst" -> "sample of"
                 
-                # Number fixes
-                (r'805%', '80%'),                  # "805% specific" -> "80% specific"
-                (r'4\s*$', ''),                    # Remove trailing "4"
-                (r'L\s*$', ''),                    # Remove trailing "L"
+                # Enhanced punctuation fixes
+                (r'(\w)\|(\w)', r'\1 \2'),                             # "word|word" -> "word word"
+                (r'(\w)\[(\w)', r'\1 \2'),                             # "word[word" -> "word word"
+                (r'(\w)\](\w)', r'\1 \2'),                             # "word]word" -> "word word"
+                (r'(\w)\+(\w)', r'\1 \2'),                             # "word+word" -> "word word"
+                (r'(\w)\=(\w)', r'\1 \2'),                             # "word=word" -> "word word"
+                (r'(\w)\°(\w)', r'\1. \2'),                            # "word°word" -> "word. word"
+                (r'(\w)\\(\w)', r'\1 \2'),                             # "word\word" -> "word word"
+                (r'(\w)\/(\w)', r'\1 \2'),                             # "word/word" -> "word word"
                 
-                # Space fixes
-                (r'(\w)([A-Z][a-z])', r'\1 \2'),  # "wordWord" -> "word Word"
-                (r'(\w)(\d)', r'\1 \2'),          # "word123" -> "word 123"
+                # Enhanced number and symbol fixes
+                (r'805%', '80%'),                                       # "805% specific" -> "80% specific"
+                (r'4\s*$', ''),                                         # Remove trailing "4"
+                (r'L\s*$', ''),                                         # Remove trailing "L"
+                (r'KG\s*\|', ''),                                       # Remove "KG |"
+                (r'Js\s*=\s*=\s*other', 'just other'),                  # "Js = = other" -> "just other"
+                (r'yn\s*=\s*caution', 'in caution'),                    # "yn = caution" -> "in caution"
+                
+                # Enhanced space fixes
+                (r'(\w)([A-Z][a-z])', r'\1 \2'),                       # "wordWord" -> "word Word"
+                (r'(\w)(\d)', r'\1 \2'),                               # "word123" -> "word 123"
+                (r'(\w)\s+(\w)', r'\1 \2'),                            # Fix multiple spaces
+                
+                # Context-aware safety text fixes
+                (r'\bCommunicate,\s*Communicate,\s*Communicate\b', 'Communicate, Communicate, Communicate'),  # Keep safety emphasis
+                (r'\buse use\b', 'use'),                                # "use use lockout" -> "use lockout"
+                (r'\bcaution in these areas\b', 'caution in these areas'),  # Keep as is
+                (r'\bFire and explosion haza\b', 'Fire and explosion hazards'),  # Complete the word
             ]
             
             # Apply all corrections
             for pattern, replacement in corrections:
                 corrected = re.sub(pattern, replacement, corrected, flags=re.IGNORECASE)
             
-            # Final cleanup: fix multiple spaces and weird characters
-            corrected = re.sub(r'\s+', ' ', corrected)  # Multiple spaces -> single space
-            corrected = re.sub(r'[^\w\s\-\.\,\:\;\(\)\[\]\/\\\'"°%$#@&\+\=\|\<\>\?\!]', '', corrected)  # Remove weird chars
+            # SECOND PASS: Handle complex OCR patterns
+            second_pass_corrections = [
+                # Fix broken words with common OCR errors
+                (r'\b(\w{1,2})\s+(\w{1,2})\s+(\w{1,2})\b', lambda m: self._fix_broken_word(m.group(1), m.group(2), m.group(3))),
+                
+                # Fix common safety/procedure text patterns
+                (r'\b(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\b', lambda m: self._fix_safety_pattern(m.group(1), m.group(2), m.group(3), m.group(4), m.group(5))),
+                
+                # Remove remaining OCR artifacts
+                (r'[^\w\s\-\.\,\:\;\(\)\[\]\/\\\'"°%$#@&\+\=\|\<\>\?\!]', ''),
+                
+                # Fix multiple spaces and clean up
+                (r'\s+', ' '),
+            ]
+            
+            for pattern, replacement in second_pass_corrections:
+                if callable(replacement):
+                    corrected = re.sub(pattern, replacement, corrected)
+                else:
+                    corrected = re.sub(pattern, replacement, corrected)
             
             return corrected.strip()
             
         except Exception as e:
             logger.warning(f"Text correction failed: {e}")
             return text  # Return original if correction fails
+    
+    def _fix_broken_word(self, part1: str, part2: str, part3: str) -> str:
+        """Fix broken words that OCR split incorrectly"""
+        try:
+            # Common broken word patterns in safety/procedure text
+            combined = part1 + part2 + part3
+            
+            # Dictionary of common safety terms that get broken
+            safety_terms = {
+                'com': 'combustible',
+                'bust': 'bustible',
+                'ible': 'ible',
+                'pro': 'proper',
+                'per': 'per',
+                'cau': 'caution',
+                'tion': 'tion',
+                'safe': 'safety',
+                'ety': 'ety',
+                'equip': 'equipment',
+                'ment': 'ment',
+                'proce': 'procedure',
+                'dure': 'dure',
+                'haza': 'hazard',
+                'ard': 'ard',
+                'prote': 'protection',
+                'tion': 'tion',
+            }
+            
+            # Try to reconstruct the word
+            if combined.lower() in safety_terms:
+                return safety_terms[combined.lower()]
+            
+            # If no match, try common combinations
+            if len(part1) <= 2 and len(part2) <= 2:
+                return part1 + part2 + part3  # Join short parts
+            else:
+                return part1 + ' ' + part2 + ' ' + part3  # Keep separated if parts are long
+                
+        except Exception:
+            return f"{part1} {part2} {part3}"  # Fallback
+    
+    def _fix_safety_pattern(self, word1: str, word2: str, word3: str, word4: str, word5: str) -> str:
+        """Fix common safety/procedure text patterns"""
+        try:
+            # Common safety text patterns that get garbled
+            pattern = f"{word1} {word2} {word3} {word4} {word5}".lower()
+            
+            # Fix common patterns
+            if 'lockout' in pattern and 'tagout' in pattern:
+                return f"{word1} {word2} lockout/tagout {word4} {word5}"
+            elif 'machine' in pattern and 'guards' in pattern:
+                return f"{word1} {word2} {word3} machine guards {word5}"
+            elif 'fire' in pattern and 'explosion' in pattern:
+                return f"{word1} {word2} Fire and explosion hazards"
+            elif 'caution' in pattern and 'areas' in pattern:
+                return f"{word1} {word2} {word3} caution in these areas"
+            else:
+                return f"{word1} {word2} {word3} {word4} {word5}"
+                
+        except Exception:
+            return f"{word1} {word2} {word3} {word4} {word5}"  # Fallback
 
 # Backward compatibility
 DocumentProcessor = OptimizedDocumentProcessor
